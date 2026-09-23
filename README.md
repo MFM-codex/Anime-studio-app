@@ -1,48 +1,91 @@
-# Anime Studio App — Technique Analyzer
+# Anime Studio App — Technique Analyzer + Studio
 
-Upload an image, get a breakdown of the technique — linework, color
-palette, shading, composition — and steps to recreate it yourself. Genuinely
-free to run: uses `gemini-3.6-flash`, which has a real free tier for text
-analysis (unlike Gemini's image generation, which turned out to require
-billing even at low volume — that feature has been removed).
+Two working features, both free:
 
-## What's in this folder
+1. **Technique Analyzer** (`/`) — upload an image, get a breakdown of the
+   technique via `gemini-3.6-flash` (free tier).
+2. **Studio** (`/studio`) — a drawing canvas. Pick a color, adjust brush
+   size, draw with your finger, erase, save your drawing as a PNG. No AI,
+   no API calls, no cost at all — just a plain HTML canvas.
 
-- `pages/index.js` — the page you see: upload box, analyze button, chat-style result
-- `pages/api/analyze.js` — backend code that sends your image to Gemini's API and returns the analysis
-- `package.json` — the libraries the project needs (just Next.js/React)
+## What's new in this update
 
-## Setup (if starting fresh)
+- `pages/studio.js` — the new drawing canvas page
+- A nav link added to the Analyzer page pointing to it
 
-1. Get a free key at aistudio.google.com/apikey
-2. Push this folder to your GitHub repo
-3. On Vercel: import the repo, leave **Root Directory blank/empty** (this
-   matters — see note below), add `GEMINI_API_KEY` as an environment
-   variable, deploy
+Nothing about the Analyzer changed.
 
-## Important: Root Directory must be empty
+## IMPORTANT — how to push this without repeating today's folder mess
 
-Vercel's "Root Directory" setting (Settings → Build and Deployment) must be
-left **blank**, not set to `anime-studio-app` or any subfolder name. If it's
-set to a folder name, Vercel builds from inside that folder instead of the
-repo's actual top level, which causes new pages to silently not deploy even
-when the build says "Ready." This caused a real bug before — worth
-remembering if anything seems to deploy but not show up.
-
-## Updating this in the future
+Given everything that went wrong today, do this exact sequence. It avoids
+every failure mode we hit (nested folders, nested-nested folders, nothing
+actually copying):
 
 ```
-cd path/to/extracted/anime-studio-app
+cd ~
+rm -rf tmp-push
+git clone https://github.com/MFM-codex/Anime-studio-app.git tmp-push
+cd tmp-push
+```
+
+Now check what's actually in your extracted zip folder first:
+
+```
+ls ~/storage/shared/anime-studio-app/
+```
+
+You should see: `pages`, `package.json`, `next.config.js`, `.gitignore`,
+`.env.example`, `README.md` listed directly (not nested inside another
+folder of the same name). If you see a folder with the same name inside
+it, that means your file manager double-nested it on extract — go one
+level deeper with the `ls` command until you find the real files, and use
+that full path below instead.
+
+Once you've confirmed the real path, copy each item individually — do NOT
+use `cp -r wholefolder ./` or the `/.` trick, both caused problems today:
+
+```
+cp -r ~/storage/shared/anime-studio-app/pages ./
+cp ~/storage/shared/anime-studio-app/package.json ./
+cp ~/storage/shared/anime-studio-app/next.config.js ./
+cp ~/storage/shared/anime-studio-app/.gitignore ./
+cp ~/storage/shared/anime-studio-app/.env.example ./
+cp ~/storage/shared/anime-studio-app/README.md ./
+```
+
+Then check what git actually sees before committing — this catches any
+mistake before it gets pushed:
+
+```
+git status
+```
+
+You should see modified/new files like `pages/studio.js`, and nothing
+like `anime-studio-app-gallery/` or any nested folder name. If you see a
+nested folder name in that list, stop and don't commit — something's
+still wrong with the copy step above.
+
+If `git status` looks right:
+
+```
 git add .
-git commit -m "your message here"
-git push
+git commit -m "Add drawing studio"
+git push origin main
 ```
 
-Vercel should auto-redeploy within a minute or two.
+## Step 2 — Test it
+
+Open your live URL, tap **"Open Studio →"**, and try drawing with your
+finger. Try changing colors, brush size, the eraser, and Save.
+
+## Important reminder (from earlier today)
+
+Vercel's **Root Directory** setting must stay blank/empty (Settings →
+Build and Deployment). If pages ever seem to deploy successfully but don't
+show up live, check this setting first.
 
 ## What's next
 
-- Supabase to save each analysis (so you can revisit past ones)
-- Then the actual drawing/studio canvas (fully free, no AI involved)
-- AI image generation could come back later as a paid add-on if you decide
-  the small per-image cost is worth it — nothing in this build blocks that
+- Layers and an actual animation timeline (bigger undertaking, later)
+- Character library with Supabase, once there's something worth saving
+  again

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Link from "next/link";
 
 export default function Home() {
   const [preview, setPreview] = useState(null);
@@ -60,6 +61,11 @@ export default function Home() {
 
   return (
     <main style={styles.main}>
+      <nav style={{ marginBottom: 12 }}>
+        <Link href="/studio" style={{ fontSize: 13, color: "#555", textDecoration: "none" }}>
+          Open Studio →
+        </Link>
+      </nav>
       <h1 style={styles.h1}>Technique Analyzer (Phase 1)</h1>
       <p style={styles.p}>
         Upload an image and get a breakdown of the technique — linework, color palette, shading,
@@ -68,7 +74,7 @@ export default function Home() {
 
       <div style={styles.card}>
         <label style={styles.label}>Upload an image</label>
-        <input type="file" accept="image/*" capture="environment" onChange={handleFileChange} />
+        <input type="file" accept="image/*" onChange={handleFileChange} />
 
         {preview && (
           <div style={styles.previewWrap}>
