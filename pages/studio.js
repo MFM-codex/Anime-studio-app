@@ -7,6 +7,9 @@ const COLORS = [
   { name: "Coral", value: "#FF4D6D" },
   { name: "Cyan", value: "#3FE8E0" },
   { name: "Gold", value: "#FFC857" },
+  { name: "Violet", value: "#7C5CFF" },
+  { name: "Moss", value: "#4E8B5C" },
+  { name: "Blush", value: "#FF9AA8" },
   { name: "White", value: "#F5EFE0" },
 ];
 
@@ -18,6 +21,35 @@ export default function Studio() {
   const [color, setColor] = useState(COLORS[0].value);
   const [size, setSize] = useState(6);
   const [tool, setTool] = useState("brush"); // "brush" | "eraser"
+  const [history, setHistory] = useState([]);
+
+  function pushHistory() {
+    const canvas = canvasRef.current;
+    setHistory((h) => {
+      const next = [...h, canvas.toDataURL("image/png")];
+      return next.length > 15 ? next.slice(next.length - 15) : next;
+    });
+  }
+
+  function undo() {
+    setHistory((h) => {
+      if (h.length === 0) return h;
+      const next = [...h];
+      const last = next.pop();
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+      img.onload = () => {
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      };
+      img.src = last;
+      return next;
+    });
+  }
 
   // Set up canvas at device pixel ratio for crisp lines
   useEffect(() => {
@@ -60,6 +92,7 @@ export default function Studio() {
 
   function startDraw(e) {
     e.preventDefault();
+    pushHistory();
     isDrawing.current = true;
     lastPoint.current = getPoint(e);
   }
@@ -86,11 +119,16 @@ export default function Studio() {
     lastPoint.current = null;
   }
 
-  function clearCanvas() {
+  function fillPaper() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#F5EFE0";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function clearCanvas() {
+    pushHistory();
+    fillPaper();
   }
 
   function saveDrawing() {
@@ -103,7 +141,7 @@ export default function Studio() {
 
   // Fill canvas with paper color on first mount
   useEffect(() => {
-    clearCanvas();
+    fillPaper();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -197,6 +235,16 @@ export default function Studio() {
 
         <div style={styles.dock}>
           <button
+            onClick={undo}
+            disabled={history.length === 0}
+            style={{
+              ...styles.toolButton,
+              opacity: history.length === 0 ? 0.4 : 1,
+            }}
+          >
+            Undo
+          </button>
+          <button
             onClick={() => setTool("brush")}
             style={{
               ...styles.toolButton,
@@ -261,6 +309,7 @@ const styles = {
   },
   swatchRow: {
     display: "flex",
+    flexWrap: "wrap",
     gap: 12,
   },
   swatch: {
@@ -306,11 +355,13 @@ const styles = {
   },
   dock: {
     display: "flex",
+    flexWrap: "wrap",
     gap: 10,
     padding: "0 16px 24px",
   },
   toolButton: {
-    flex: 1,
+    flex: "1 1 30%",
+    minWidth: 90,
     padding: "12px 0",
     borderRadius: 10,
     border: "1px solid rgba(245,239,224,0.2)",
@@ -332,7 +383,8 @@ const styles = {
     color: "#15121C",
   },
   clearButton: {
-    flex: 1,
+    flex: "1 1 30%",
+    minWidth: 90,
     padding: "12px 0",
     borderRadius: 10,
     border: "1px solid rgba(63,232,224,0.4)",
