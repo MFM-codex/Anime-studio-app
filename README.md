@@ -1,25 +1,36 @@
-# Anime Studio App — Technique Analyzer + Studio
+# Anime Studio App — Analyzer + Studio + Library
 
-Two working features, both free:
+Three working features now:
 
-1. **Technique Analyzer** (`/`) — upload an image, get a breakdown of the
-   technique via `gemini-3.6-flash` (free tier).
-2. **Studio** (`/studio`) — a drawing canvas. Pick a color, adjust brush
-   size, draw with your finger, erase, save your drawing as a PNG. No AI,
-   no API calls, no cost at all — just a plain HTML canvas.
+1. **Technique Analyzer** (`/`) — upload an image, get a breakdown via Gemini.
+2. **Studio** (`/studio`) — drawing canvas: brush, eraser, 8 colors, undo,
+   save as PNG, or **Save to Library**.
+3. **Library** (`/library`) — browse, search by name, view full-size, and
+   delete your saved drawings. Backed by Supabase (free tier).
 
 ## What's new in this update
 
-- `pages/studio.js` — the new drawing canvas page
-- A nav link added to the Analyzer page pointing to it
+- `lib/supabaseClient.js` — shared Supabase connection
+- `pages/library.js` — the new Library page
+- Studio page: "Save to Library" button + name prompt
+- `package.json` — added the `@supabase/supabase-js` dependency
 
-Nothing about the Analyzer changed.
+## New environment variables needed in Vercel
 
-## IMPORTANT — how to push this without repeating today's folder mess
+In addition to `GEMINI_API_KEY` (already set), add these two:
 
-Given everything that went wrong today, do this exact sequence. It avoids
-every failure mode we hit (nested folders, nested-nested folders, nothing
-actually copying):
+- `NEXT_PUBLIC_SUPABASE_URL` — your Supabase Project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — your Supabase Publishable key
+
+**Important:** these must be typed exactly as shown, including the
+`NEXT_PUBLIC_` prefix — that's what tells Next.js it's safe to use in the
+browser (this key is meant to be public; your database's row-level
+security policies control what it's allowed to do, not secrecy of the key).
+
+Add them the same way as before: Vercel → Settings → Environments →
+Production → Add Environment Variable. Then redeploy.
+
+## Push instructions (same safe method as before)
 
 ```
 cd ~
@@ -28,64 +39,46 @@ git clone https://github.com/MFM-codex/Anime-studio-app.git tmp-push
 cd tmp-push
 ```
 
-Now check what's actually in your extracted zip folder first:
-
+Check the real path first:
 ```
-ls ~/storage/shared/anime-studio-app/
-```
-
-You should see: `pages`, `package.json`, `next.config.js`, `.gitignore`,
-`.env.example`, `README.md` listed directly (not nested inside another
-folder of the same name). If you see a folder with the same name inside
-it, that means your file manager double-nested it on extract — go one
-level deeper with the `ls` command until you find the real files, and use
-that full path below instead.
-
-Once you've confirmed the real path, copy each item individually — do NOT
-use `cp -r wholefolder ./` or the `/.` trick, both caused problems today:
-
-```
-cp -r ~/storage/shared/anime-studio-app/pages ./
-cp ~/storage/shared/anime-studio-app/package.json ./
-cp ~/storage/shared/anime-studio-app/next.config.js ./
-cp ~/storage/shared/anime-studio-app/.gitignore ./
-cp ~/storage/shared/anime-studio-app/.env.example ./
-cp ~/storage/shared/anime-studio-app/README.md ./
+ls ~/storage/shared/
 ```
 
-Then check what git actually sees before committing — this catches any
-mistake before it gets pushed:
+Then copy each item individually (adjust the folder name to match what
+`ls` showed you):
+```
+cp -r ~/storage/shared/<your-extracted-folder>/pages ./
+cp -r ~/storage/shared/<your-extracted-folder>/lib ./
+cp ~/storage/shared/<your-extracted-folder>/package.json ./
+cp ~/storage/shared/<your-extracted-folder>/next.config.js ./
+cp ~/storage/shared/<your-extracted-folder>/.gitignore ./
+cp ~/storage/shared/<your-extracted-folder>/.env.example ./
+cp ~/storage/shared/<your-extracted-folder>/README.md ./
+```
 
+Check before committing:
 ```
 git status
 ```
 
-You should see modified/new files like `pages/studio.js`, and nothing
-like `anime-studio-app-gallery/` or any nested folder name. If you see a
-nested folder name in that list, stop and don't commit — something's
-still wrong with the copy step above.
+You should see `lib/supabaseClient.js` and `pages/library.js` as new
+files, plus `pages/studio.js` and `package.json` modified. Nothing else.
 
-If `git status` looks right:
-
+Then:
 ```
 git add .
-git commit -m "Add drawing studio"
+git commit -m "Add Supabase library feature"
 git push origin main
 ```
 
-## Step 2 — Test it
+## Test it
 
-Open your live URL, tap **"Open Studio →"**, and try drawing with your
-finger. Try changing colors, brush size, the eraser, and Save.
-
-## Important reminder (from earlier today)
-
-Vercel's **Root Directory** setting must stay blank/empty (Settings →
-Build and Deployment). If pages ever seem to deploy successfully but don't
-show up live, check this setting first.
+1. Add the two new environment variables in Vercel and redeploy
+2. Open `/studio`, draw something, tap "Save to Library," give it a name
+3. Open `/library` — your drawing should appear
+4. Try searching by name, tapping to view full-size, and deleting one
 
 ## What's next
 
-- Layers and an actual animation timeline (bigger undertaking, later)
-- Character library with Supabase, once there's something worth saving
-  again
+- Layers and an animation timeline (bigger undertaking)
+- Linking characters analyzed in the Technique Analyzer to library entries

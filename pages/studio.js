@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Head from "next/head";
+import { supabase } from "../lib/supabaseClient";
 
 const COLORS = [
   { name: "Ink", value: "#15121C" },
@@ -22,6 +23,10 @@ export default function Studio() {
   const [size, setSize] = useState(6);
   const [tool, setTool] = useState("brush"); // "brush" | "eraser"
   const [history, setHistory] = useState([]);
+  const [showSaveBox, setShowSaveBox] = useState(false);
+  const [drawingName, setDrawingName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState(null);
 
   function pushHistory() {
     const canvas = canvasRef.current;
@@ -139,6 +144,37 @@ export default function Studio() {
     link.click();
   }
 
+  async function saveToLibrary() {
+    if (!drawingName.trim()) {
+      setSaveMessage("Give it a name first.");
+      return;
+    }
+    setSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const canvas = canvasRef.current;
+      const imageData = canvas.toDataURL("image/png");
+
+      const { error } = await supabase
+        .from("drawings")
+        .insert([{ name: drawingName.trim(), image_data: imageData }]);
+
+      if (error) throw error;
+
+      setSaveMessage("Saved!");
+      setDrawingName("");
+      setTimeout(() => {
+        setShowSaveBox(false);
+        setSaveMessage(null);
+      }, 1200);
+    } catch (err) {
+      setSaveMessage(err.message || "Something went wrong saving.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   // Fill canvas with paper color on first mount
   useEffect(() => {
     fillPaper();
@@ -171,7 +207,9 @@ export default function Studio() {
             ← Analyzer
           </Link>
           <h1 style={styles.title}>Studio</h1>
-          <div style={{ width: 70 }} />
+          <Link href="/library" style={styles.backLink}>
+            Library →
+          </Link>
         </header>
 
         <div style={styles.controlBar}>
@@ -265,10 +303,47 @@ export default function Studio() {
           <button onClick={saveDrawing} style={styles.toolButton}>
             Save
           </button>
+          <button
+            onClick={() => setShowSaveBox(true)}
+            style={{ ...styles.toolButton, ...styles.toolButtonActiveCyan }}
+          >
+            Save to Library
+          </button>
           <button onClick={clearCanvas} style={styles.clearButton}>
             Clear
           </button>
         </div>
+        {showSaveBox && (
+          <div style={styles.overlay}>
+            <div style={styles.overlayCard}>
+              <p style={styles.overlayTitle}>Name this drawing</p>
+              <input
+                type="text"
+                placeholder="e.g. blue hair warrior"
+                value={drawingName}
+                onChange={(e) => setDrawingName(e.target.value)}
+                style={styles.overlayInput}
+                autoFocus
+              />
+              <div style={styles.overlayButtons}>
+                <button
+                  onClick={() => {
+                    setShowSaveBox(false);
+                    setSaveMessage(null);
+                    setDrawingName("");
+                  }}
+                  style={styles.overlayCancel}
+                >
+                  Cancel
+                </button>
+                <button onClick={saveToLibrary} disabled={saving} style={styles.overlaySave}>
+                  {saving ? "Saving..." : "Save"}
+                </button>
+              </div>
+              {saveMessage && <p style={styles.overlayMessage}>{saveMessage}</p>}
+            </div>
+          </div>
+        )}
       </main>
     </>
   );
@@ -382,6 +457,11 @@ const styles = {
     borderColor: "#FFC857",
     color: "#15121C",
   },
+  toolButtonActiveCyan: {
+    background: "#3FE8E0",
+    borderColor: "#3FE8E0",
+    color: "#15121C",
+  },
   clearButton: {
     flex: "1 1 30%",
     minWidth: 90,
@@ -394,5 +474,73 @@ const styles = {
     fontWeight: 500,
     fontSize: 14,
     cursor: "pointer",
+  },
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(21,18,28,0.85)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    zIndex: 50,
+  },
+  overlayCard: {
+    background: "#2A2438",
+    borderRadius: 14,
+    padding: 20,
+    width: "100%",
+    maxWidth: 340,
+    border: "1px solid rgba(245,239,224,0.15)",
+  },
+  overlayTitle: {
+    fontWeight: 700,
+    fontSize: 16,
+    margin: "0 0 12px",
+  },
+  overlayInput: {
+    width: "100%",
+    padding: 10,
+    borderRadius: 8,
+    border: "1px solid rgba(245,239,224,0.25)",
+    background: "#15121C",
+    color: "#F5EFE0",
+    fontFamily: "inherit",
+    fontSize: 14,
+    boxSizing: "border-box",
+  },
+  overlayButtons: {
+    display: "flex",
+    gap: 10,
+    marginTop: 14,
+  },
+  overlayCancel: {
+    flex: 1,
+    padding: "10px 0",
+    borderRadius: 8,
+    border: "1px solid rgba(245,239,224,0.2)",
+    background: "transparent",
+    color: "#F5EFE0",
+    fontFamily: "inherit",
+    fontSize: 14,
+    cursor: "pointer",
+  },
+  overlaySave: {
+    flex: 1,
+    padding: "10px 0",
+    borderRadius: 8,
+    border: "none",
+    background: "#3FE8E0",
+    color: "#15121C",
+    fontFamily: "inherit",
+    fontWeight: 600,
+    fontSize: 14,
+    cursor: "pointer",
+  },
+  overlayMessage: {
+    marginTop: 10,
+    fontSize: 13,
+    color: "#FF9AA8",
+    textAlign: "center",
   },
 };
