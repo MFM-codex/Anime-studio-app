@@ -18,10 +18,15 @@ export default function Studio() {
   const canvasRef = useRef(null);
   const isDrawing = useRef(false);
   const lastPoint = useRef(null);
+  const lastMidPoint = useRef(null);
+  const lastTime = useRef(null);
 
   const [color, setColor] = useState(COLORS[0].value);
   const [size, setSize] = useState(6);
   const [tool, setTool] = useState("brush"); // "brush" | "eraser"
+  const [opacity, setOpacity] = useState(100);
+  const [softBrush, setSoftBrush] = useState(false);
+  const [blendMix, setBlendMix] = useState(false);
   const [history, setHistory] = useState([]);
   const [showSaveBox, setShowSaveBox] = useState(false);
   const [drawingName, setDrawingName] = useState("");
@@ -99,7 +104,10 @@ export default function Studio() {
     e.preventDefault();
     pushHistory();
     isDrawing.current = true;
-    lastPoint.current = getPoint(e);
+    const point = getPoint(e);
+    lastPoint.current = point;
+    lastMidPoint.current = point;
+    lastTime.current = performance.now();
   }
 
   function draw(e) {
@@ -109,14 +117,43 @@ export default function Studio() {
     const ctx = canvas.getContext("2d");
     const point = getPoint(e);
 
+    const now = performance.now();
+    const dt = Math.max(now - (lastTime.current || now), 1);
+    const dx = point.x - lastPoint.current.x;
+    const dy = point.y - lastPoint.current.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const speed = dist / dt; // px per ms
+
+    const baseWidth = tool === "eraser" ? size * 3 : size;
+    // Faster movement -> thinner line, like a real hand-drawn taper.
+    // No effect on eraser, which should stay a consistent width.
+    const taper = tool === "eraser" ? 1 : Math.max(0.4, 1 - speed * 1.8);
+    const strokeWidth = baseWidth * taper;
+
+    const midPoint = {
+      x: (lastPoint.current.x + point.x) / 2,
+      y: (lastPoint.current.y + point.y) / 2,
+    };
+
+    ctx.save();
+    ctx.globalAlpha = tool === "eraser" ? 1 : opacity / 100;
+    ctx.globalCompositeOperation =
+      tool === "brush" && blendMix ? "multiply" : "source-over";
+    if (tool === "brush" && softBrush) {
+      ctx.filter = `blur(${Math.max(1, strokeWidth * 0.18)}px)`;
+    }
+
     ctx.beginPath();
-    ctx.moveTo(lastPoint.current.x, lastPoint.current.y);
-    ctx.lineTo(point.x, point.y);
+    ctx.moveTo(lastMidPoint.current.x, lastMidPoint.current.y);
+    ctx.quadraticCurveTo(lastPoint.current.x, lastPoint.current.y, midPoint.x, midPoint.y);
     ctx.strokeStyle = tool === "eraser" ? "#F5EFE0" : color;
-    ctx.lineWidth = tool === "eraser" ? size * 3 : size;
+    ctx.lineWidth = strokeWidth;
     ctx.stroke();
+    ctx.restore();
 
     lastPoint.current = point;
+    lastMidPoint.current = midPoint;
+    lastTime.current = now;
   }
 
   function endDraw() {
@@ -175,9 +212,41 @@ export default function Studio() {
     }
   }
 
-  // Fill canvas with paper color on first mount
+  function drawImageOntoCanvas(dataUri) {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    img.onload = () => {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    };
+    img.src = dataUri;
+  }
+
+  // Fill canvas with paper color on first mount, or load a drawing sent
+  // over from the Library ("Edit in Studio").
   useEffect(() => {
-    fillPaper();
+    let pending = null;
+    try {
+      const raw = sessionStorage.getItem("loadIntoStudio");
+      if (raw) {
+        pending = JSON.parse(raw);
+        sessionStorage.removeItem("loadIntoStudio");
+      }
+    } catch (err) {
+      pending = null;
+    }
+
+    if (pending && pending.image_data) {
+      fillPaper();
+      drawImageOntoCanvas(pending.image_data);
+      setDrawingName(pending.name || "");
+    } else {
+      fillPaper();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -254,6 +323,40 @@ export default function Studio() {
                 border: tool === "eraser" ? "1px solid #FFC857" : "none",
               }}
             />
+          </div>
+
+          <div style={styles.sizeRow}>
+            <span style={styles.sizeLabel}>Opacity</span>
+            <input
+              type="range"
+              min="10"
+              max="100"
+              value={opacity}
+              onChange={(e) => setOpacity(Number(e.target.value))}
+              style={styles.slider}
+            />
+            <span style={styles.opacityValue}>{opacity}%</span>
+          </div>
+
+          <div style={styles.toggleRow}>
+            <button
+              onClick={() => setSoftBrush((v) => !v)}
+              style={{
+                ...styles.toggleChip,
+                ...(softBrush ? styles.toggleChipActive : {}),
+              }}
+            >
+              Soft edge
+            </button>
+            <button
+              onClick={() => setBlendMix((v) => !v)}
+              style={{
+                ...styles.toggleChip,
+                ...(blendMix ? styles.toggleChipActive : {}),
+              }}
+            >
+              Blend colors
+            </button>
           </div>
         </div>
 
@@ -412,6 +515,34 @@ const styles = {
   sizePreview: {
     borderRadius: "50%",
     flexShrink: 0,
+  },
+  opacityValue: {
+    fontSize: 12,
+    color: "rgba(245,239,224,0.6)",
+    width: 34,
+    textAlign: "right",
+    flexShrink: 0,
+  },
+  toggleRow: {
+    display: "flex",
+    gap: 10,
+  },
+  toggleChip: {
+    flex: 1,
+    padding: "8px 0",
+    borderRadius: 8,
+    border: "1px solid rgba(245,239,224,0.2)",
+    background: "transparent",
+    color: "rgba(245,239,224,0.7)",
+    fontFamily: "inherit",
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: "pointer",
+  },
+  toggleChipActive: {
+    background: "#7C5CFF",
+    borderColor: "#7C5CFF",
+    color: "#F5EFE0",
   },
   canvasWrap: {
     flex: 1,

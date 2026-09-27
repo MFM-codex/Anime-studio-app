@@ -1,36 +1,35 @@
 # Anime Studio App — Analyzer + Studio + Library
 
-Three working features now:
+## What's new in this update: the brush engine
 
-1. **Technique Analyzer** (`/`) — upload an image, get a breakdown via Gemini.
-2. **Studio** (`/studio`) — drawing canvas: brush, eraser, 8 colors, undo,
-   save as PNG, or **Save to Library**.
-3. **Library** (`/library`) — browse, search by name, view full-size, and
-   delete your saved drawings. Backed by Supabase (free tier).
+This directly addresses "make a drawing feel more human" — four real,
+free techniques, no stylus required:
 
-## What's new in this update
+1. **Stroke smoothing** — lines are now drawn as smooth curves between
+   points instead of straight jagged segments, so finger-drawn strokes
+   look cleaner and more deliberate.
+2. **Velocity-based taper** — draw fast and the line thins out; draw
+   slow and it thickens, just like a real pen responds to hand speed.
+   This is the same trick that makes a line "feel" hand-drawn even
+   without pressure-sensitive hardware.
+3. **Opacity slider** — build up color gradually with light strokes,
+   like real ink or marker, instead of one flat opaque layer every time.
+4. **Soft edge toggle** — blurs the brush edge slightly for an airbrush/
+   soft-pencil feel instead of a hard vector-like line.
+5. **Blend colors toggle** — uses a "multiply" blend so overlapping
+   strokes mix and darken naturally, closer to how real pigment
+   layers, instead of the new stroke just covering up the old one.
 
-- `lib/supabaseClient.js` — shared Supabase connection
-- `pages/library.js` — the new Library page
-- Studio page: "Save to Library" button + name prompt
-- `package.json` — added the `@supabase/supabase-js` dependency
+**Real, honest limitation:** actual pressure sensitivity (thin on light
+touch, thick on hard press) only works with a real stylus — a finger on
+glass reports no pressure data at all, on any app, not just this one. The
+velocity-taper trick above is the finger-friendly substitute, and it gets
+you a real hand-drawn feel without needing a stylus.
 
-## New environment variables needed in Vercel
+No new dependencies, no new environment variables — just `pages/studio.js`
+changed.
 
-In addition to `GEMINI_API_KEY` (already set), add these two:
-
-- `NEXT_PUBLIC_SUPABASE_URL` — your Supabase Project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — your Supabase Publishable key
-
-**Important:** these must be typed exactly as shown, including the
-`NEXT_PUBLIC_` prefix — that's what tells Next.js it's safe to use in the
-browser (this key is meant to be public; your database's row-level
-security policies control what it's allowed to do, not secrecy of the key).
-
-Add them the same way as before: Vercel → Settings → Environments →
-Production → Add Environment Variable. Then redeploy.
-
-## Push instructions (same safe method as before)
+## Push instructions (same safe method as always)
 
 ```
 cd ~
@@ -39,21 +38,20 @@ git clone https://github.com/MFM-codex/Anime-studio-app.git tmp-push
 cd tmp-push
 ```
 
-Check the real path first:
+Check the real path of your latest extracted zip:
 ```
 ls ~/storage/shared/
 ```
 
-Then copy each item individually (adjust the folder name to match what
-`ls` showed you):
+Copy each item individually (swap in the real folder name):
 ```
-cp -r ~/storage/shared/<your-extracted-folder>/pages ./
-cp -r ~/storage/shared/<your-extracted-folder>/lib ./
-cp ~/storage/shared/<your-extracted-folder>/package.json ./
-cp ~/storage/shared/<your-extracted-folder>/next.config.js ./
-cp ~/storage/shared/<your-extracted-folder>/.gitignore ./
-cp ~/storage/shared/<your-extracted-folder>/.env.example ./
-cp ~/storage/shared/<your-extracted-folder>/README.md ./
+cp -r ~/storage/shared/<your-folder>/pages ./
+cp -r ~/storage/shared/<your-folder>/lib ./
+cp ~/storage/shared/<your-folder>/package.json ./
+cp ~/storage/shared/<your-folder>/next.config.js ./
+cp ~/storage/shared/<your-folder>/.gitignore ./
+cp ~/storage/shared/<your-folder>/.env.example ./
+cp ~/storage/shared/<your-folder>/README.md ./
 ```
 
 Check before committing:
@@ -61,24 +59,37 @@ Check before committing:
 git status
 ```
 
-You should see `lib/supabaseClient.js` and `pages/library.js` as new
-files, plus `pages/studio.js` and `package.json` modified. Nothing else.
+Expect only `pages/studio.js` listed as modified.
 
-Then:
 ```
 git add .
-git commit -m "Add Supabase library feature"
+git commit -m "Add brush engine: smoothing, taper, opacity, soft edge, blend"
 git push origin main
 ```
 
+## Vercel — confirm the deploy actually updates
+
+After pushing, go straight to Deployments and check the top entry's commit
+message matches what you just pushed. If it shows an older commit,
+manually Redeploy the correct one, or reimport the project fresh if that
+doesn't work (Settings → Delete Project → vercel.com/new) — this has been
+the recurring issue today.
+
 ## Test it
 
-1. Add the two new environment variables in Vercel and redeploy
-2. Open `/studio`, draw something, tap "Save to Library," give it a name
-3. Open `/library` — your drawing should appear
-4. Try searching by name, tapping to view full-size, and deleting one
+1. Open `/studio`
+2. Draw a slow, deliberate stroke, then a fast flick — notice the line
+   gets thinner on the fast one
+3. Lower Opacity to ~30% and draw the same spot twice — colors should
+   build up rather than instantly cover
+4. Toggle "Soft edge" on — new strokes should look blurred/airbrushed
+5. Toggle "Blend colors" on, draw one color over another — they should
+   mix/darken where they overlap, rather than one flatly covering the other
 
 ## What's next
 
-- Layers and an animation timeline (bigger undertaking)
-- Linking characters analyzed in the Technique Analyzer to library entries
+- A dedicated color palette panel with custom, saveable swatches
+- Vector shape tools (circles, rectangles, polygons) — a bigger phase
+  requiring a new engine (Fabric.js), done separately when ready
+- An animation timeline (draw multiple frames, play back as a short
+  video) — the free path toward actual anime-style shorts

@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Head from "next/head";
+import { useRouter } from "next/router";
 import { supabase } from "../lib/supabaseClient";
 
 export default function Library() {
+  const router = useRouter();
   const [drawings, setDrawings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -29,6 +31,18 @@ export default function Library() {
       setError(err.message || "Couldn't load your library.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function loadIntoStudio(drawing) {
+    try {
+      sessionStorage.setItem(
+        "loadIntoStudio",
+        JSON.stringify({ name: drawing.name, image_data: drawing.image_data })
+      );
+      router.push("/studio");
+    } catch (err) {
+      setError("Couldn't open this in Studio. Try again.");
     }
   }
 
@@ -113,6 +127,9 @@ export default function Library() {
               <div style={styles.overlayButtons}>
                 <button onClick={() => setSelected(null)} style={styles.overlayClose}>
                   Close
+                </button>
+                <button onClick={() => loadIntoStudio(selected)} style={styles.overlayEdit}>
+                  Edit in Studio
                 </button>
                 <button
                   onClick={() => deleteDrawing(selected.id)}
@@ -237,11 +254,12 @@ const styles = {
   },
   overlayButtons: {
     display: "flex",
+    flexWrap: "wrap",
     gap: 10,
     marginTop: 14,
   },
   overlayClose: {
-    flex: 1,
+    flex: "1 1 40%",
     padding: "10px 0",
     borderRadius: 8,
     border: "1px solid rgba(245,239,224,0.2)",
@@ -251,8 +269,20 @@ const styles = {
     fontSize: 14,
     cursor: "pointer",
   },
+  overlayEdit: {
+    flex: "1 1 40%",
+    padding: "10px 0",
+    borderRadius: 8,
+    border: "none",
+    background: "#3FE8E0",
+    color: "#15121C",
+    fontFamily: "inherit",
+    fontWeight: 600,
+    fontSize: 14,
+    cursor: "pointer",
+  },
   overlayDelete: {
-    flex: 1,
+    flex: "1 1 100%",
     padding: "10px 0",
     borderRadius: 8,
     border: "none",
