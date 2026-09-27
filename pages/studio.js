@@ -280,6 +280,11 @@ export default function Studio() {
             Library →
           </Link>
         </header>
+        <div style={{ padding: "0 16px 8px", textAlign: "center" }}>
+          <Link href="/vector" style={{ fontSize: 12, color: "#7C5CFF", textDecoration: "none" }}>
+            Try the new Vector editor →
+          </Link>
+        </div>
 
         <div style={styles.controlBar}>
           <div style={styles.swatchRow}>

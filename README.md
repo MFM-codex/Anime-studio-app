@@ -1,33 +1,45 @@
-# Anime Studio App — Analyzer + Studio + Library
+# Anime Studio App — Analyzer + Studio + Vector + Library
 
-## What's new in this update: the brush engine
+## What's new: the Vector node editing engine (`/vector`)
 
-This directly addresses "make a drawing feel more human" — four real,
-free techniques, no stylus required:
+A completely separate page, built from scratch — the raster brush Studio
+(`/studio`) is untouched except for one added link. Nothing about the
+Analyzer or Library changed at all.
 
-1. **Stroke smoothing** — lines are now drawn as smooth curves between
-   points instead of straight jagged segments, so finger-drawn strokes
-   look cleaner and more deliberate.
-2. **Velocity-based taper** — draw fast and the line thins out; draw
-   slow and it thickens, just like a real pen responds to hand speed.
-   This is the same trick that makes a line "feel" hand-drawn even
-   without pressure-sensitive hardware.
-3. **Opacity slider** — build up color gradually with light strokes,
-   like real ink or marker, instead of one flat opaque layer every time.
-4. **Soft edge toggle** — blurs the brush edge slightly for an airbrush/
-   soft-pencil feel instead of a hard vector-like line.
-5. **Blend colors toggle** — uses a "multiply" blend so overlapping
-   strokes mix and darken naturally, closer to how real pigment
-   layers, instead of the new stroke just covering up the old one.
+### What it does, exactly matching the spec
 
-**Real, honest limitation:** actual pressure sensitivity (thin on light
-touch, thick on hard press) only works with a real stylus — a finger on
-glass reports no pressure data at all, on any app, not just this one. The
-velocity-taper trick above is the finger-friendly substitute, and it gets
-you a real hand-drawn feel without needing a stylus.
+1. **Point-and-click path creation** — tap empty canvas space to drop a
+   node connected to the previous one. Tap the highlighted first node
+   again (once you have 2+ nodes) to close the shape into a loop.
+2. **Node editing**
+   - **Move:** drag any node
+   - **Bézier handles:** select a node (tap once) to reveal its two
+     purple control-arm dots — drag them to bend the curve
+   - **Insert:** tap directly on an existing line to add a new node there
+   - **Delete:** double-tap a node (two taps within ~350ms) to remove it
+   - **Corner / Smooth toggle:** appears when a node is selected; Smooth
+     auto-computes symmetric handles from its neighbors, Corner collapses
+     them to a sharp point
+3. **Live styling** — color swatches, width slider, and opacity slider,
+   all applying instantly to whichever path is selected or currently
+   being drawn
 
-No new dependencies, no new environment variables — just `pages/studio.js`
-changed.
+Also included, to match the rest of the app: a **Save to Library** button
+(rasterizes the current vector canvas and saves it the same way Studio
+does), since that's the established pattern everywhere else.
+
+### One real, honest limitation
+
+Deleting a node currently bridges the gap using whatever handles its
+neighbors already had — it doesn't try to recompute a "smart" new curve
+through the gap. In practice this looks fine most of the time; on a very
+curvy deletion it can occasionally look slightly off. Nothing else in the
+spec has a caveat like this.
+
+## No new dependencies, no new environment variables
+
+Just one new file (`pages/vector.js`) and a one-line link added inside
+`pages/studio.js`'s header area — nothing else touched.
 
 ## Push instructions (same safe method as always)
 
@@ -43,7 +55,7 @@ Check the real path of your latest extracted zip:
 ls ~/storage/shared/
 ```
 
-Copy each item individually (swap in the real folder name):
+Copy each item individually:
 ```
 cp -r ~/storage/shared/<your-folder>/pages ./
 cp -r ~/storage/shared/<your-folder>/lib ./
@@ -59,37 +71,38 @@ Check before committing:
 git status
 ```
 
-Expect only `pages/studio.js` listed as modified.
+Expect `pages/vector.js` as new, and `pages/studio.js` as modified —
+nothing else.
 
 ```
 git add .
-git commit -m "Add brush engine: smoothing, taper, opacity, soft edge, blend"
+git commit -m "Add vector node editing engine"
 git push origin main
 ```
 
-## Vercel — confirm the deploy actually updates
+## Confirm the deploy actually updates
 
-After pushing, go straight to Deployments and check the top entry's commit
-message matches what you just pushed. If it shows an older commit,
-manually Redeploy the correct one, or reimport the project fresh if that
-doesn't work (Settings → Delete Project → vercel.com/new) — this has been
-the recurring issue today.
+Go to Vercel → Deployments and check the top entry's commit message
+matches what you just pushed, before testing. Manually Redeploy if it
+still shows an older commit — this has been the recurring issue.
 
 ## Test it
 
-1. Open `/studio`
-2. Draw a slow, deliberate stroke, then a fast flick — notice the line
-   gets thinner on the fast one
-3. Lower Opacity to ~30% and draw the same spot twice — colors should
-   build up rather than instantly cover
-4. Toggle "Soft edge" on — new strokes should look blurred/airbrushed
-5. Toggle "Blend colors" on, draw one color over another — they should
-   mix/darken where they overlap, rather than one flatly covering the other
+1. Open `/studio`, tap "Try the new Vector editor →"
+2. Tap around the canvas a few times to drop nodes, then tap the first
+   node again to close a shape
+3. Tap a node once — drag its purple handle dots to bend a curve
+4. Tap "Smooth" to see the corner round out
+5. Tap directly on a line between two nodes — a new node should appear there
+6. Double-tap any node to delete it
+7. Try the color/width/opacity controls
+8. Save to Library and confirm it shows up in `/library` like anything
+   else
 
 ## What's next
 
-- A dedicated color palette panel with custom, saveable swatches
-- Vector shape tools (circles, rectangles, polygons) — a bigger phase
-  requiring a new engine (Fabric.js), done separately when ready
+- A dedicated, savable custom color palette panel
+- Freehand-to-shape recognition (turn a rough sketch into a clean
+  vector shape) — the hardest remaining piece, optional, later
 - An animation timeline (draw multiple frames, play back as a short
   video) — the free path toward actual anime-style shorts
