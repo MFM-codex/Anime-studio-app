@@ -73,12 +73,16 @@ export default function VectorEditor() {
   const canvasRef = useRef(null);
   const dragging = useRef(null); // { type: 'node'|'handleIn'|'handleOut', pathId, nodeId }
   const lastTap = useRef(null); // { nodeId, time }
+  const gesture = useRef(null); // { startDist, startZoom, startPan, worldMid }
+  const multiTouchActive = useRef(false);
 
   const [paths, setPaths] = useState([]);
   const [activePathId, setActivePathId] = useState(null);
   const [selectedPathId, setSelectedPathId] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [showSaveBox, setShowSaveBox] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
   const [drawingName, setDrawingName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
@@ -110,7 +114,7 @@ export default function VectorEditor() {
   useEffect(() => {
     render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paths, activePathId, selectedPathId, selectedNodeId]);
+  }, [paths, activePathId, selectedPathId, selectedNodeId, zoom, pan]);
 
   function render() {
     const canvas = canvasRef.current;
@@ -127,6 +131,10 @@ export default function VectorEditor() {
     ctx.fillStyle = "#F5EFE0";
     ctx.fillRect(0, 0, cssWidth, cssHeight);
     ctx.restore();
+
+    // Everything below is drawn in "world" space, so it pans/zooms together
+    ctx.save();
+    ctx.setTransform(ratio * zoom, 0, 0, ratio * zoom, ratio * pan.x, ratio * pan.y);
 
     paths.forEach((path) => drawPath(ctx, path));
 
@@ -182,6 +190,8 @@ export default function VectorEditor() {
         });
       }
     }
+
+    ctx.restore();
   }
 
   function drawPath(ctx, path) {
@@ -204,15 +214,27 @@ export default function VectorEditor() {
   }
 
   // ---------- hit testing ----------
-  const getPoint = useCallback((e) => {
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const touch = e.touches ? e.touches[0] : e;
+  const getPoint = useCallback(
+    (e) => {
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches ? e.touches[0] : e;
+      const screenX = touch.clientX - rect.left;
+      const screenY = touch.clientY - rect.top;
+      return {
+        x: (screenX - pan.x) / zoom,
+        y: (screenY - pan.y) / zoom,
+      };
+    },
+    [pan, zoom]
+  );
+
+  function screenToWorld(screenX, screenY) {
     return {
-      x: touch.clientX - rect.left,
-      y: touch.clientY - rect.top,
+      x: (screenX - pan.x) / zoom,
+      y: (screenY - pan.y) / zoom,
     };
-  }, []);
+  }
 
   function hitTestHandle(point) {
     if (!selectedNodeId) return null;
@@ -319,6 +341,31 @@ export default function VectorEditor() {
   // ---------- pointer handlers ----------
   function onPointerDown(e) {
     e.preventDefault();
+
+    if (e.touches && e.touches.length === 2) {
+      multiTouchActive.current = true;
+      dragging.current = null;
+      const [t1, t2] = e.touches;
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const p1 = { x: t1.clientX - rect.left, y: t1.clientY - rect.top };
+      const p2 = { x: t2.clientX - rect.left, y: t2.clientY - rect.top };
+      const midScreen = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+      const startDist = dist(p1, p2);
+      gesture.current = {
+        startDist,
+        startZoom: zoom,
+        startPan: pan,
+        worldMid: screenToWorld(midScreen.x, midScreen.y),
+      };
+      return;
+    }
+
+    if (multiTouchActive.current) {
+      // Still finishing a multi-touch gesture; ignore stray single-finger events
+      return;
+    }
+
     const point = getPoint(e);
 
     const handleHit = hitTestHandle(point);
@@ -389,6 +436,31 @@ export default function VectorEditor() {
   }
 
   function onPointerMove(e) {
+    if (e.touches && e.touches.length === 2 && gesture.current) {
+      e.preventDefault();
+      const [t1, t2] = e.touches;
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const p1 = { x: t1.clientX - rect.left, y: t1.clientY - rect.top };
+      const p2 = { x: t2.clientX - rect.left, y: t2.clientY - rect.top };
+      const midScreen = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+      const newDist = dist(p1, p2);
+      const { startDist, startZoom, worldMid } = gesture.current;
+
+      let newZoom = startZoom * (newDist / startDist);
+      newZoom = Math.min(5, Math.max(0.3, newZoom));
+
+      const newPan = {
+        x: midScreen.x - worldMid.x * newZoom,
+        y: midScreen.y - worldMid.y * newZoom,
+      };
+
+      setZoom(newZoom);
+      setPan(newPan);
+      return;
+    }
+
+    if (multiTouchActive.current) return;
     if (!dragging.current) return;
     e.preventDefault();
     const point = getPoint(e);
@@ -436,7 +508,12 @@ export default function VectorEditor() {
     );
   }
 
-  function onPointerUp() {
+  function onPointerUp(e) {
+    const remaining = e && e.touches ? e.touches.length : 0;
+    if (remaining === 0) {
+      multiTouchActive.current = false;
+      gesture.current = null;
+    }
     dragging.current = null;
   }
 
@@ -493,6 +570,39 @@ export default function VectorEditor() {
     setActivePathId(null);
     setSelectedPathId(null);
     setSelectedNodeId(null);
+  }
+
+  // ---------- zoom controls ----------
+  function zoomBy(factor, anchorScreen) {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const anchor = anchorScreen || {
+      x: rect.width / 2,
+      y: rect.height / 2,
+    };
+    const worldAnchor = screenToWorld(anchor.x, anchor.y);
+    let newZoom = zoom * factor;
+    newZoom = Math.min(5, Math.max(0.3, newZoom));
+    const newPan = {
+      x: anchor.x - worldAnchor.x * newZoom,
+      y: anchor.y - worldAnchor.y * newZoom,
+    };
+    setZoom(newZoom);
+    setPan(newPan);
+  }
+
+  function resetZoom() {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  function onWheel(e) {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const anchor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    zoomBy(factor, anchor);
   }
 
   // ---------- live styling ----------
@@ -576,7 +686,8 @@ export default function VectorEditor() {
           Tap empty space to drop a node. Tap the first node again to close a
           shape. Drag any node to move it, drag the purple dots to bend a
           curve. Double-tap a node to delete it. Tap a line to insert a node
-          on it.
+          on it. Pinch with two fingers to zoom, drag with two fingers to
+          pan — one finger always edits nodes.
         </p>
 
         <div style={styles.canvasWrap}>
@@ -590,7 +701,20 @@ export default function VectorEditor() {
             onTouchStart={onPointerDown}
             onTouchMove={onPointerMove}
             onTouchEnd={onPointerUp}
+            onWheel={onWheel}
           />
+          <div style={styles.zoomControls}>
+            <button onClick={() => zoomBy(1.2)} style={styles.zoomButton}>
+              +
+            </button>
+            <span style={styles.zoomLabel}>{Math.round(zoom * 100)}%</span>
+            <button onClick={() => zoomBy(1 / 1.2)} style={styles.zoomButton}>
+              −
+            </button>
+            <button onClick={resetZoom} style={styles.zoomResetButton}>
+              Reset
+            </button>
+          </div>
         </div>
 
         <div style={styles.controlBar}>
@@ -742,6 +866,7 @@ const styles = {
     lineHeight: 1.4,
   },
   canvasWrap: {
+    position: "relative",
     flex: 1,
     margin: "0 16px 16px",
     borderRadius: 16,
@@ -749,6 +874,46 @@ const styles = {
     border: "1px solid rgba(245,239,224,0.15)",
     boxShadow: "0 8px 30px rgba(0,0,0,0.4)",
     minHeight: 320,
+  },
+  zoomControls: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    background: "rgba(21,18,28,0.85)",
+    borderRadius: 10,
+    padding: "6px 8px",
+    border: "1px solid rgba(245,239,224,0.15)",
+  },
+  zoomButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    border: "none",
+    background: "#2A2438",
+    color: "#F5EFE0",
+    fontSize: 18,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  zoomLabel: {
+    fontSize: 12,
+    color: "#F5EFE0",
+    width: 42,
+    textAlign: "center",
+  },
+  zoomResetButton: {
+    padding: "0 8px",
+    height: 30,
+    borderRadius: 8,
+    border: "none",
+    background: "#3FE8E0",
+    color: "#15121C",
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
   },
   canvas: {
     display: "block",
