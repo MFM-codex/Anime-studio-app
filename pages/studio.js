@@ -32,8 +32,11 @@ export default function Studio() {
   const [drawingName, setDrawingName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
+<<<<<<< HEAD
   const [customColors, setCustomColors] = useState([]);
   const [paletteEditMode, setPaletteEditMode] = useState(false);
+=======
+>>>>>>> 07e2c43621de91a7145219ff179730c440a72914
 
   function pushHistory() {
     const canvas = canvasRef.current;
@@ -252,6 +255,7 @@ export default function Studio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+<<<<<<< HEAD
   // Load any custom palette colors saved on this device
   useEffect(() => {
     try {
@@ -292,6 +296,8 @@ export default function Studio() {
     });
   }
 
+=======
+>>>>>>> 07e2c43621de91a7145219ff179730c440a72914
   return (
     <>
       <Head>
@@ -349,6 +355,7 @@ export default function Studio() {
                 }}
               />
             ))}
+<<<<<<< HEAD
 
             {customColors.map((hex) => (
               <div key={hex} style={styles.customSwatchWrap}>
@@ -401,6 +408,8 @@ export default function Studio() {
                 {paletteEditMode ? "Done" : "Edit"}
               </button>
             )}
+=======
+>>>>>>> 07e2c43621de91a7145219ff179730c440a72914
           </div>
 
           <div style={styles.sizeRow}>
@@ -597,6 +606,7 @@ const styles = {
     cursor: "pointer",
     padding: 0,
   },
+<<<<<<< HEAD
   customSwatchWrap: {
     position: "relative",
     width: 32,
@@ -653,6 +663,8 @@ const styles = {
     borderColor: "#3FE8E0",
     color: "#15121C",
   },
+=======
+>>>>>>> 07e2c43621de91a7145219ff179730c440a72914
   sizeRow: {
     display: "flex",
     alignItems: "center",
