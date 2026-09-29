@@ -1,155 +1,134 @@
 import { useState } from "react";
-import Link from "next/link";
+import Head from "next/head";
+import AnalyzerPanel from "../components/AnalyzerPanel";
+import StudioPanel from "../components/StudioPanel";
+import VectorPanel from "../components/VectorPanel";
+import LibraryPanel from "../components/LibraryPanel";
 
-export default function Home() {
-  const [preview, setPreview] = useState(null);
-  const [base64, setBase64] = useState(null);
-  const [mediaType, setMediaType] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [analysis, setAnalysis] = useState(null);
+const TABS = [
+  { id: "analyze", label: "Analyze" },
+  { id: "draw", label: "Draw" },
+  { id: "vector", label: "Vector" },
+  { id: "library", label: "Library" },
+];
 
-  function handleFileChange(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+export default function AppShell() {
+  const [activeTab, setActiveTab] = useState("analyze");
+  const [studioLoadRequest, setStudioLoadRequest] = useState(null);
 
-    setError(null);
-    setAnalysis(null);
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUri = reader.result; // "data:image/png;base64,AAAA..."
-      const [header, data] = dataUri.split(",");
-      const typeMatch = header.match(/data:(.*);base64/);
-
-      setPreview(dataUri);
-      setBase64(data);
-      setMediaType(typeMatch ? typeMatch[1] : "image/jpeg");
-    };
-    reader.readAsDataURL(file);
-  }
-
-  async function handleAnalyze() {
-    if (!base64) {
-      setError("Upload an image first.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setAnalysis(null);
-
-    try {
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: base64, mediaType }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Something went wrong");
-      }
-
-      setAnalysis(data.result);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  function handleEditInStudio(drawing) {
+    // A new object reference each time, so StudioPanel's effect fires
+    // even if the same drawing is sent over twice in a row.
+    setStudioLoadRequest({ ...drawing, _token: Date.now() });
+    setActiveTab("draw");
   }
 
   return (
-    <main style={styles.main}>
-      <nav style={{ marginBottom: 12 }}>
-        <Link href="/studio" style={{ fontSize: 13, color: "#555", textDecoration: "none" }}>
-          Open Studio →
-        </Link>
-      </nav>
-      <h1 style={styles.h1}>Technique Analyzer (Phase 1)</h1>
-      <p style={styles.p}>
-        Upload an image and get a breakdown of the technique — linework, color palette, shading,
-        composition — plus steps to recreate it yourself.
-      </p>
+    <>
+      <Head>
+        <title>Anime Studio</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+          rel="stylesheet"
+        />
+      </Head>
+      <style jsx global>{`
+        * {
+          box-sizing: border-box;
+        }
+        body {
+          margin: 0;
+          font-family: "Space Grotesk", sans-serif;
+          background: #15121c;
+          color: #f5efe0;
+        }
+      `}</style>
 
-      <div style={styles.card}>
-        <label style={styles.label}>Upload an image</label>
-        <input type="file" accept="image/*" onChange={handleFileChange} />
+      <main style={styles.main}>
+        <header style={styles.header}>
+          <h1 style={styles.title}>Anime Studio</h1>
+        </header>
 
-        {preview && (
-          <div style={styles.previewWrap}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={preview} alt="Uploaded" style={styles.image} />
-          </div>
-        )}
+        <nav style={styles.tabBar}>
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                ...styles.tabButton,
+                ...(activeTab === tab.id ? styles.tabButtonActive : {}),
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
-        <button onClick={handleAnalyze} disabled={loading} style={styles.button}>
-          {loading ? "Analyzing..." : "Analyze technique"}
-        </button>
-
-        {error && <p style={styles.error}>{error}</p>}
-      </div>
-
-      {analysis && (
-        <div style={styles.chatBubble}>
-          <p style={styles.small}>Analysis:</p>
-          <div style={styles.analysisText}>
-            {analysis.split("\n").map((line, i) => (
-              <p key={i} style={{ margin: "4px 0" }}>
-                {line}
-              </p>
-            ))}
-          </div>
+        {/* All four panels stay mounted at all times — only visibility
+            toggles. This means switching tabs never loses in-progress
+            work: a half-finished drawing, an open vector path, or an
+            analysis result all stay exactly as you left them. */}
+        <div style={{ display: activeTab === "analyze" ? "block" : "none" }}>
+          <AnalyzerPanel />
         </div>
-      )}
-    </main>
+        <div style={{ display: activeTab === "draw" ? "block" : "none" }}>
+          <StudioPanel
+            loadRequest={studioLoadRequest}
+            onLoadConsumed={() => setStudioLoadRequest(null)}
+          />
+        </div>
+        <div style={{ display: activeTab === "vector" ? "block" : "none" }}>
+          <VectorPanel />
+        </div>
+        <div style={{ display: activeTab === "library" ? "block" : "none" }}>
+          <LibraryPanel onEditInStudio={handleEditInStudio} />
+        </div>
+      </main>
+    </>
   );
 }
 
 const styles = {
   main: {
-    maxWidth: 480,
-    margin: "0 auto",
-    padding: "24px 16px",
-    fontFamily: "system-ui, -apple-system, sans-serif",
+    minHeight: "100vh",
+    display: "flex",
+    flexDirection: "column",
   },
-  h1: { fontSize: 22, marginBottom: 4 },
-  p: { color: "#555", marginBottom: 20, fontSize: 14 },
-  card: {
-    border: "1px solid #ddd",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+  header: {
+    padding: "16px 16px 4px",
+    textAlign: "center",
   },
-  label: { display: "block", fontWeight: 600, marginBottom: 8, fontSize: 14 },
-  small: { fontSize: 13, color: "#666", marginBottom: 8, fontWeight: 600 },
-  button: {
-    marginTop: 16,
-    width: "100%",
-    padding: 12,
-    borderRadius: 8,
-    border: "none",
-    background: "#111",
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: 600,
+  title: {
+    fontSize: 20,
+    fontWeight: 700,
+    letterSpacing: "0.02em",
+    margin: 0,
+  },
+  tabBar: {
+    display: "flex",
+    gap: 8,
+    padding: "12px 16px",
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+    background: "#15121C",
+  },
+  tabButton: {
+    flex: 1,
+    padding: "10px 0",
+    borderRadius: 10,
+    border: "1px solid rgba(245,239,224,0.2)",
+    background: "#2A2438",
+    color: "rgba(245,239,224,0.7)",
+    fontFamily: "inherit",
+    fontWeight: 500,
+    fontSize: 13,
     cursor: "pointer",
   },
-  previewWrap: { marginTop: 12 },
-  image: {
-    width: "100%",
-    borderRadius: 8,
-    marginTop: 6,
-  },
-  error: { color: "#c0392b", marginTop: 12, fontSize: 14 },
-  chatBubble: {
-    background: "#f4f4f4",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 14,
-    lineHeight: 1.5,
-  },
-  analysisText: {
-    whiteSpace: "pre-wrap",
+  tabButtonActive: {
+    background: "#FF4D6D",
+    borderColor: "#FF4D6D",
+    color: "#15121C",
   },
 };

@@ -1,6 +1,4 @@
 import { useRef, useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import Head from "next/head";
 import { supabase } from "../lib/supabaseClient";
 
 const COLORS = [
@@ -14,7 +12,7 @@ const COLORS = [
   { name: "White", value: "#F5EFE0" },
 ];
 
-export default function Studio() {
+export default function StudioPanel({ loadRequest, onLoadConsumed }) {
   const canvasRef = useRef(null);
   const isDrawing = useRef(false);
   const lastPoint = useRef(null);
@@ -32,11 +30,8 @@ export default function Studio() {
   const [drawingName, setDrawingName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
-<<<<<<< HEAD
   const [customColors, setCustomColors] = useState([]);
   const [paletteEditMode, setPaletteEditMode] = useState(false);
-=======
->>>>>>> 07e2c43621de91a7145219ff179730c440a72914
 
   function pushHistory() {
     const canvas = canvasRef.current;
@@ -127,11 +122,9 @@ export default function Studio() {
     const dx = point.x - lastPoint.current.x;
     const dy = point.y - lastPoint.current.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const speed = dist / dt; // px per ms
+    const speed = dist / dt;
 
     const baseWidth = tool === "eraser" ? size * 3 : size;
-    // Faster movement -> thinner line, like a real hand-drawn taper.
-    // No effect on eraser, which should stay a consistent width.
     const taper = tool === "eraser" ? 1 : Math.max(0.4, 1 - speed * 1.8);
     const strokeWidth = baseWidth * taper;
 
@@ -231,31 +224,23 @@ export default function Studio() {
     img.src = dataUri;
   }
 
-  // Fill canvas with paper color on first mount, or load a drawing sent
-  // over from the Library ("Edit in Studio").
+  // Fill canvas with paper color on first mount
   useEffect(() => {
-    let pending = null;
-    try {
-      const raw = sessionStorage.getItem("loadIntoStudio");
-      if (raw) {
-        pending = JSON.parse(raw);
-        sessionStorage.removeItem("loadIntoStudio");
-      }
-    } catch (err) {
-      pending = null;
-    }
-
-    if (pending && pending.image_data) {
-      fillPaper();
-      drawImageOntoCanvas(pending.image_data);
-      setDrawingName(pending.name || "");
-    } else {
-      fillPaper();
-    }
+    fillPaper();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-<<<<<<< HEAD
+  // Receive a drawing sent over from the Library panel ("Edit in Studio")
+  useEffect(() => {
+    if (loadRequest && loadRequest.image_data) {
+      fillPaper();
+      drawImageOntoCanvas(loadRequest.image_data);
+      setDrawingName(loadRequest.name || "");
+      if (onLoadConsumed) onLoadConsumed();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadRequest]);
+
   // Load any custom palette colors saved on this device
   useEffect(() => {
     try {
@@ -276,7 +261,7 @@ export default function Studio() {
       try {
         localStorage.setItem("customPaletteColors", JSON.stringify(next));
       } catch (err) {
-        // ignore storage failures (e.g. private browsing quota)
+        // ignore storage failures
       }
       return next;
     });
@@ -296,296 +281,236 @@ export default function Studio() {
     });
   }
 
-=======
->>>>>>> 07e2c43621de91a7145219ff179730c440a72914
   return (
-    <>
-      <Head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
-          rel="stylesheet"
-        />
-      </Head>
-      <style jsx global>{`
-        * {
-          box-sizing: border-box;
-        }
-        body {
-          margin: 0;
-          font-family: "Space Grotesk", sans-serif;
-          background: #15121c;
-        }
-      `}</style>
+    <div style={styles.wrap}>
+      <div style={styles.controlBar}>
+        <div style={styles.swatchRow}>
+          {COLORS.map((c) => (
+            <button
+              key={c.value}
+              onClick={() => {
+                setColor(c.value);
+                setTool("brush");
+              }}
+              aria-label={c.name}
+              style={{
+                ...styles.swatch,
+                background: c.value,
+                outline:
+                  color === c.value && tool === "brush"
+                    ? "3px solid #FF4D6D"
+                    : "2px solid rgba(245,239,224,0.25)",
+                outlineOffset: 2,
+              }}
+            />
+          ))}
 
-      <main style={styles.main}>
-        <header style={styles.header}>
-          <Link href="/" style={styles.backLink}>
-            ← Analyzer
-          </Link>
-          <h1 style={styles.title}>Studio</h1>
-          <Link href="/library" style={styles.backLink}>
-            Library →
-          </Link>
-        </header>
-        <div style={{ padding: "0 16px 8px", textAlign: "center" }}>
-          <Link href="/vector" style={{ fontSize: 12, color: "#7C5CFF", textDecoration: "none" }}>
-            Try the new Vector editor →
-          </Link>
-        </div>
-
-        <div style={styles.controlBar}>
-          <div style={styles.swatchRow}>
-            {COLORS.map((c) => (
+          {customColors.map((hex) => (
+            <div key={hex} style={styles.customSwatchWrap}>
               <button
-                key={c.value}
                 onClick={() => {
-                  setColor(c.value);
+                  if (paletteEditMode) return;
+                  setColor(hex);
                   setTool("brush");
                 }}
-                aria-label={c.name}
+                aria-label={hex}
                 style={{
                   ...styles.swatch,
-                  background: c.value,
+                  background: hex,
                   outline:
-                    color === c.value && tool === "brush"
+                    color === hex && tool === "brush"
                       ? "3px solid #FF4D6D"
                       : "2px solid rgba(245,239,224,0.25)",
                   outlineOffset: 2,
                 }}
               />
-            ))}
-<<<<<<< HEAD
-
-            {customColors.map((hex) => (
-              <div key={hex} style={styles.customSwatchWrap}>
+              {paletteEditMode && (
                 <button
-                  onClick={() => {
-                    if (paletteEditMode) return;
-                    setColor(hex);
-                    setTool("brush");
-                  }}
-                  aria-label={hex}
-                  style={{
-                    ...styles.swatch,
-                    background: hex,
-                    outline:
-                      color === hex && tool === "brush"
-                        ? "3px solid #FF4D6D"
-                        : "2px solid rgba(245,239,224,0.25)",
-                    outlineOffset: 2,
-                  }}
-                />
-                {paletteEditMode && (
-                  <button
-                    onClick={() => removeCustomColor(hex)}
-                    style={styles.customSwatchRemove}
-                    aria-label={`Remove ${hex}`}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            ))}
+                  onClick={() => removeCustomColor(hex)}
+                  style={styles.customSwatchRemove}
+                  aria-label={`Remove ${hex}`}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
 
-            <label style={styles.addSwatchButton}>
-              +
-              <input
-                type="color"
-                onChange={(e) => addCustomColor(e.target.value)}
-                style={styles.hiddenColorInput}
-              />
-            </label>
-
-            {customColors.length > 0 && (
-              <button
-                onClick={() => setPaletteEditMode((v) => !v)}
-                style={{
-                  ...styles.editPaletteButton,
-                  ...(paletteEditMode ? styles.editPaletteButtonActive : {}),
-                }}
-              >
-                {paletteEditMode ? "Done" : "Edit"}
-              </button>
-            )}
-=======
->>>>>>> 07e2c43621de91a7145219ff179730c440a72914
-          </div>
-
-          <div style={styles.sizeRow}>
-            <span style={styles.sizeLabel}>Size</span>
+          <label style={styles.addSwatchButton}>
+            +
             <input
-              type="range"
-              min="2"
-              max="40"
-              value={size}
-              onChange={(e) => setSize(Number(e.target.value))}
-              style={styles.slider}
+              type="color"
+              onChange={(e) => addCustomColor(e.target.value)}
+              style={styles.hiddenColorInput}
             />
-            <span
-              style={{
-                ...styles.sizePreview,
-                width: Math.max(size, 6),
-                height: Math.max(size, 6),
-                background: tool === "eraser" ? "#F5EFE0" : color,
-                border: tool === "eraser" ? "1px solid #FFC857" : "none",
-              }}
-            />
-          </div>
+          </label>
 
-          <div style={styles.sizeRow}>
-            <span style={styles.sizeLabel}>Opacity</span>
-            <input
-              type="range"
-              min="10"
-              max="100"
-              value={opacity}
-              onChange={(e) => setOpacity(Number(e.target.value))}
-              style={styles.slider}
-            />
-            <span style={styles.opacityValue}>{opacity}%</span>
-          </div>
-
-          <div style={styles.toggleRow}>
+          {customColors.length > 0 && (
             <button
-              onClick={() => setSoftBrush((v) => !v)}
+              onClick={() => setPaletteEditMode((v) => !v)}
               style={{
-                ...styles.toggleChip,
-                ...(softBrush ? styles.toggleChipActive : {}),
+                ...styles.editPaletteButton,
+                ...(paletteEditMode ? styles.editPaletteButtonActive : {}),
               }}
             >
-              Soft edge
+              {paletteEditMode ? "Done" : "Edit"}
             </button>
-            <button
-              onClick={() => setBlendMix((v) => !v)}
-              style={{
-                ...styles.toggleChip,
-                ...(blendMix ? styles.toggleChipActive : {}),
-              }}
-            >
-              Blend colors
-            </button>
-          </div>
+          )}
         </div>
 
-        <div style={styles.canvasWrap}>
-          <canvas
-            ref={canvasRef}
-            style={styles.canvas}
-            onMouseDown={startDraw}
-            onMouseMove={draw}
-            onMouseUp={endDraw}
-            onMouseLeave={endDraw}
-            onTouchStart={startDraw}
-            onTouchMove={draw}
-            onTouchEnd={endDraw}
+        <div style={styles.sizeRow}>
+          <span style={styles.sizeLabel}>Size</span>
+          <input
+            type="range"
+            min="2"
+            max="40"
+            value={size}
+            onChange={(e) => setSize(Number(e.target.value))}
+            style={styles.slider}
+          />
+          <span
+            style={{
+              ...styles.sizePreview,
+              width: Math.max(size, 6),
+              height: Math.max(size, 6),
+              background: tool === "eraser" ? "#F5EFE0" : color,
+              border: tool === "eraser" ? "1px solid #FFC857" : "none",
+            }}
           />
         </div>
 
-        <div style={styles.dock}>
+        <div style={styles.sizeRow}>
+          <span style={styles.sizeLabel}>Opacity</span>
+          <input
+            type="range"
+            min="10"
+            max="100"
+            value={opacity}
+            onChange={(e) => setOpacity(Number(e.target.value))}
+            style={styles.slider}
+          />
+          <span style={styles.opacityValue}>{opacity}%</span>
+        </div>
+
+        <div style={styles.toggleRow}>
           <button
-            onClick={undo}
-            disabled={history.length === 0}
+            onClick={() => setSoftBrush((v) => !v)}
             style={{
-              ...styles.toolButton,
-              opacity: history.length === 0 ? 0.4 : 1,
+              ...styles.toggleChip,
+              ...(softBrush ? styles.toggleChipActive : {}),
             }}
           >
-            Undo
+            Soft edge
           </button>
           <button
-            onClick={() => setTool("brush")}
+            onClick={() => setBlendMix((v) => !v)}
             style={{
-              ...styles.toolButton,
-              ...(tool === "brush" ? styles.toolButtonActive : {}),
+              ...styles.toggleChip,
+              ...(blendMix ? styles.toggleChipActive : {}),
             }}
           >
-            Brush
-          </button>
-          <button
-            onClick={() => setTool("eraser")}
-            style={{
-              ...styles.toolButton,
-              ...(tool === "eraser" ? styles.toolButtonActiveGold : {}),
-            }}
-          >
-            Eraser
-          </button>
-          <button onClick={saveDrawing} style={styles.toolButton}>
-            Save
-          </button>
-          <button
-            onClick={() => setShowSaveBox(true)}
-            style={{ ...styles.toolButton, ...styles.toolButtonActiveCyan }}
-          >
-            Save to Library
-          </button>
-          <button onClick={clearCanvas} style={styles.clearButton}>
-            Clear
+            Blend colors
           </button>
         </div>
-        {showSaveBox && (
-          <div style={styles.overlay}>
-            <div style={styles.overlayCard}>
-              <p style={styles.overlayTitle}>Name this drawing</p>
-              <input
-                type="text"
-                placeholder="e.g. blue hair warrior"
-                value={drawingName}
-                onChange={(e) => setDrawingName(e.target.value)}
-                style={styles.overlayInput}
-                autoFocus
-              />
-              <div style={styles.overlayButtons}>
-                <button
-                  onClick={() => {
-                    setShowSaveBox(false);
-                    setSaveMessage(null);
-                    setDrawingName("");
-                  }}
-                  style={styles.overlayCancel}
-                >
-                  Cancel
-                </button>
-                <button onClick={saveToLibrary} disabled={saving} style={styles.overlaySave}>
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </div>
-              {saveMessage && <p style={styles.overlayMessage}>{saveMessage}</p>}
+      </div>
+
+      <div style={styles.canvasWrap}>
+        <canvas
+          ref={canvasRef}
+          style={styles.canvas}
+          onMouseDown={startDraw}
+          onMouseMove={draw}
+          onMouseUp={endDraw}
+          onMouseLeave={endDraw}
+          onTouchStart={startDraw}
+          onTouchMove={draw}
+          onTouchEnd={endDraw}
+        />
+      </div>
+
+      <div style={styles.dock}>
+        <button
+          onClick={undo}
+          disabled={history.length === 0}
+          style={{
+            ...styles.toolButton,
+            opacity: history.length === 0 ? 0.4 : 1,
+          }}
+        >
+          Undo
+        </button>
+        <button
+          onClick={() => setTool("brush")}
+          style={{
+            ...styles.toolButton,
+            ...(tool === "brush" ? styles.toolButtonActive : {}),
+          }}
+        >
+          Brush
+        </button>
+        <button
+          onClick={() => setTool("eraser")}
+          style={{
+            ...styles.toolButton,
+            ...(tool === "eraser" ? styles.toolButtonActiveGold : {}),
+          }}
+        >
+          Eraser
+        </button>
+        <button onClick={saveDrawing} style={styles.toolButton}>
+          Save
+        </button>
+        <button
+          onClick={() => setShowSaveBox(true)}
+          style={{ ...styles.toolButton, ...styles.toolButtonActiveCyan }}
+        >
+          Save to Library
+        </button>
+        <button onClick={clearCanvas} style={styles.clearButton}>
+          Clear
+        </button>
+      </div>
+
+      {showSaveBox && (
+        <div style={styles.overlay}>
+          <div style={styles.overlayCard}>
+            <p style={styles.overlayTitle}>Name this drawing</p>
+            <input
+              type="text"
+              placeholder="e.g. blue hair warrior"
+              value={drawingName}
+              onChange={(e) => setDrawingName(e.target.value)}
+              style={styles.overlayInput}
+              autoFocus
+            />
+            <div style={styles.overlayButtons}>
+              <button
+                onClick={() => {
+                  setShowSaveBox(false);
+                  setSaveMessage(null);
+                  setDrawingName("");
+                }}
+                style={styles.overlayCancel}
+              >
+                Cancel
+              </button>
+              <button onClick={saveToLibrary} disabled={saving} style={styles.overlaySave}>
+                {saving ? "Saving..." : "Save"}
+              </button>
             </div>
+            {saveMessage && <p style={styles.overlayMessage}>{saveMessage}</p>}
           </div>
-        )}
-      </main>
-    </>
+        </div>
+      )}
+    </div>
   );
 }
 
 const styles = {
-  main: {
-    minHeight: "100vh",
+  wrap: {
     display: "flex",
     flexDirection: "column",
-    background: "#15121C",
-    color: "#F5EFE0",
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "16px 16px 8px",
-  },
-  backLink: {
-    fontSize: 13,
-    color: "#3FE8E0",
-    textDecoration: "none",
-    fontWeight: 500,
-    width: 70,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 700,
-    letterSpacing: "0.02em",
-    margin: 0,
+    minHeight: "70vh",
   },
   controlBar: {
     padding: "8px 16px 16px",
@@ -606,7 +531,6 @@ const styles = {
     cursor: "pointer",
     padding: 0,
   },
-<<<<<<< HEAD
   customSwatchWrap: {
     position: "relative",
     width: 32,
@@ -663,8 +587,6 @@ const styles = {
     borderColor: "#3FE8E0",
     color: "#15121C",
   },
-=======
->>>>>>> 07e2c43621de91a7145219ff179730c440a72914
   sizeRow: {
     display: "flex",
     alignItems: "center",

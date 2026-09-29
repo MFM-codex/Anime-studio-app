@@ -1,6 +1,4 @@
 import { useRef, useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import Head from "next/head";
 import { supabase } from "../lib/supabaseClient";
 
 const COLORS = [
@@ -69,11 +67,11 @@ function makePath(node) {
   };
 }
 
-export default function VectorEditor() {
+export default function VectorPanel() {
   const canvasRef = useRef(null);
-  const dragging = useRef(null); // { type: 'node'|'handleIn'|'handleOut', pathId, nodeId }
-  const lastTap = useRef(null); // { nodeId, time }
-  const gesture = useRef(null); // { startDist, startZoom, startPan, worldMid }
+  const dragging = useRef(null);
+  const lastTap = useRef(null);
+  const gesture = useRef(null);
   const multiTouchActive = useRef(false);
 
   const [paths, setPaths] = useState([]);
@@ -132,13 +130,11 @@ export default function VectorEditor() {
     ctx.fillRect(0, 0, cssWidth, cssHeight);
     ctx.restore();
 
-    // Everything below is drawn in "world" space, so it pans/zooms together
     ctx.save();
     ctx.setTransform(ratio * zoom, 0, 0, ratio * zoom, ratio * pan.x, ratio * pan.y);
 
     paths.forEach((path) => drawPath(ctx, path));
 
-    // Highlight the first node of an open active path (close target)
     const activePath = paths.find((p) => p.id === activePathId);
     if (activePath && activePath.nodes.length >= 2 && !activePath.closed) {
       const first = activePath.nodes[0];
@@ -149,7 +145,6 @@ export default function VectorEditor() {
       ctx.stroke();
     }
 
-    // Draw nodes for all paths (small dots)
     paths.forEach((path) => {
       path.nodes.forEach((node) => {
         const isSelected = node.id === selectedNodeId;
@@ -163,12 +158,10 @@ export default function VectorEditor() {
       });
     });
 
-    // Draw Bezier handles for the selected node only
     if (selectedNodeId) {
       const path = paths.find((p) => p.id === selectedPathId);
       const node = path && path.nodes.find((n) => n.id === selectedNodeId);
       if (node) {
-        // handle lines
         ctx.strokeStyle = "rgba(124,92,255,0.6)";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -178,7 +171,6 @@ export default function VectorEditor() {
         ctx.lineTo(node.hx2, node.hy2);
         ctx.stroke();
 
-        // handle dots
         [
           { x: node.hx1, y: node.hy1 },
           { x: node.hx2, y: node.hy2 },
@@ -362,7 +354,6 @@ export default function VectorEditor() {
     }
 
     if (multiTouchActive.current) {
-      // Still finishing a multi-touch gesture; ignore stray single-finger events
       return;
     }
 
@@ -403,7 +394,6 @@ export default function VectorEditor() {
       return;
     }
 
-    // Empty space
     const activePath = paths.find((p) => p.id === activePathId);
     if (activePath) {
       const first = activePath.nodes[0];
@@ -538,7 +528,6 @@ export default function VectorEditor() {
         .map((path) => {
           if (path.id !== pathId) return path;
           const nodes = path.nodes.filter((n) => n.id !== nodeId);
-          // Reset neighbors of the gap to corner, to avoid stray spikes
           return { ...path, nodes };
         })
         .filter((path) => path.nodes.length > 0)
@@ -652,212 +641,163 @@ export default function VectorEditor() {
   }
 
   return (
-    <>
-      <Head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
-          rel="stylesheet"
+    <div style={styles.wrap}>
+      <p style={styles.hint}>
+        Tap empty space to drop a node. Tap the first node again to close a
+        shape. Drag any node to move it, drag the purple dots to bend a
+        curve. Double-tap a node to delete it. Tap a line to insert a node
+        on it. Pinch with two fingers to zoom, drag with two fingers to
+        pan — one finger always edits nodes.
+      </p>
+
+      <div style={styles.canvasWrap}>
+        <canvas
+          ref={canvasRef}
+          style={styles.canvas}
+          onMouseDown={onPointerDown}
+          onMouseMove={onPointerMove}
+          onMouseUp={onPointerUp}
+          onMouseLeave={onPointerUp}
+          onTouchStart={onPointerDown}
+          onTouchMove={onPointerMove}
+          onTouchEnd={onPointerUp}
+          onWheel={onWheel}
         />
-      </Head>
-      <style jsx global>{`
-        * {
-          box-sizing: border-box;
-        }
-        body {
-          margin: 0;
-          font-family: "Space Grotesk", sans-serif;
-          background: #15121c;
-        }
-      `}</style>
+        <div style={styles.zoomControls}>
+          <button onClick={() => zoomBy(1.2)} style={styles.zoomButton}>
+            +
+          </button>
+          <span style={styles.zoomLabel}>{Math.round(zoom * 100)}%</span>
+          <button onClick={() => zoomBy(1 / 1.2)} style={styles.zoomButton}>
+            −
+          </button>
+          <button onClick={resetZoom} style={styles.zoomResetButton}>
+            Reset
+          </button>
+        </div>
+      </div>
 
-      <main style={styles.main}>
-        <header style={styles.header}>
-          <Link href="/studio" style={styles.backLink}>
-            ← Studio
-          </Link>
-          <h1 style={styles.title}>Vector</h1>
-          <Link href="/library" style={styles.backLink}>
-            Library →
-          </Link>
-        </header>
+      <div style={styles.controlBar}>
+        <div style={styles.swatchRow}>
+          {COLORS.map((c) => (
+            <button
+              key={c}
+              onClick={() => applyStyle({ color: c })}
+              disabled={!targetPathId()}
+              aria-label={c}
+              style={{
+                ...styles.swatch,
+                background: c,
+                opacity: targetPathId() ? 1 : 0.3,
+                outline:
+                  targetPath && targetPath.color === c
+                    ? "3px solid #FF4D6D"
+                    : "2px solid rgba(245,239,224,0.25)",
+              }}
+            />
+          ))}
+        </div>
 
-        <p style={styles.hint}>
-          Tap empty space to drop a node. Tap the first node again to close a
-          shape. Drag any node to move it, drag the purple dots to bend a
-          curve. Double-tap a node to delete it. Tap a line to insert a node
-          on it. Pinch with two fingers to zoom, drag with two fingers to
-          pan — one finger always edits nodes.
-        </p>
-
-        <div style={styles.canvasWrap}>
-          <canvas
-            ref={canvasRef}
-            style={styles.canvas}
-            onMouseDown={onPointerDown}
-            onMouseMove={onPointerMove}
-            onMouseUp={onPointerUp}
-            onMouseLeave={onPointerUp}
-            onTouchStart={onPointerDown}
-            onTouchMove={onPointerMove}
-            onTouchEnd={onPointerUp}
-            onWheel={onWheel}
+        <div style={styles.sizeRow}>
+          <span style={styles.sizeLabel}>Width</span>
+          <input
+            type="range"
+            min="1"
+            max="24"
+            value={targetPath ? targetPath.width : 4}
+            disabled={!targetPathId()}
+            onChange={(e) => applyStyle({ width: Number(e.target.value) })}
+            style={styles.slider}
           />
-          <div style={styles.zoomControls}>
-            <button onClick={() => zoomBy(1.2)} style={styles.zoomButton}>
-              +
-            </button>
-            <span style={styles.zoomLabel}>{Math.round(zoom * 100)}%</span>
-            <button onClick={() => zoomBy(1 / 1.2)} style={styles.zoomButton}>
-              −
-            </button>
-            <button onClick={resetZoom} style={styles.zoomResetButton}>
-              Reset
-            </button>
-          </div>
         </div>
 
-        <div style={styles.controlBar}>
-          <div style={styles.swatchRow}>
-            {COLORS.map((c) => (
-              <button
-                key={c}
-                onClick={() => applyStyle({ color: c })}
-                disabled={!targetPathId()}
-                aria-label={c}
-                style={{
-                  ...styles.swatch,
-                  background: c,
-                  opacity: targetPathId() ? 1 : 0.3,
-                  outline:
-                    targetPath && targetPath.color === c
-                      ? "3px solid #FF4D6D"
-                      : "2px solid rgba(245,239,224,0.25)",
-                }}
-              />
-            ))}
-          </div>
-
-          <div style={styles.sizeRow}>
-            <span style={styles.sizeLabel}>Width</span>
-            <input
-              type="range"
-              min="1"
-              max="24"
-              value={targetPath ? targetPath.width : 4}
-              disabled={!targetPathId()}
-              onChange={(e) => applyStyle({ width: Number(e.target.value) })}
-              style={styles.slider}
-            />
-          </div>
-
-          <div style={styles.sizeRow}>
-            <span style={styles.sizeLabel}>Opacity</span>
-            <input
-              type="range"
-              min="10"
-              max="100"
-              value={targetPath ? targetPath.opacity : 100}
-              disabled={!targetPathId()}
-              onChange={(e) => applyStyle({ opacity: Number(e.target.value) })}
-              style={styles.slider}
-            />
-          </div>
-
-          {selectedNode && (
-            <div style={styles.toggleRow}>
-              <button
-                onClick={toggleNodeType}
-                style={{ ...styles.toggleChip, ...styles.toggleChipActive }}
-              >
-                {selectedNode.type === "corner" ? "Corner" : "Smooth"} — tap
-                to switch
-              </button>
-              <button onClick={deleteSelectedNode} style={styles.dangerChip}>
-                Delete node
-              </button>
-            </div>
-          )}
+        <div style={styles.sizeRow}>
+          <span style={styles.sizeLabel}>Opacity</span>
+          <input
+            type="range"
+            min="10"
+            max="100"
+            value={targetPath ? targetPath.opacity : 100}
+            disabled={!targetPathId()}
+            onChange={(e) => applyStyle({ opacity: Number(e.target.value) })}
+            style={styles.slider}
+          />
         </div>
 
-        <div style={styles.dock}>
-          <button onClick={finishPath} style={styles.toolButton}>
-            Finish path
-          </button>
-          <button onClick={newPath} style={styles.toolButton}>
-            New path
-          </button>
-          <button
-            onClick={() => setShowSaveBox(true)}
-            style={{ ...styles.toolButton, ...styles.toolButtonActiveCyan }}
-          >
-            Save to Library
-          </button>
-          <button onClick={clearAll} style={styles.clearButton}>
-            Clear all
-          </button>
-        </div>
-
-        {showSaveBox && (
-          <div style={styles.overlay}>
-            <div style={styles.overlayCard}>
-              <p style={styles.overlayTitle}>Name this drawing</p>
-              <input
-                type="text"
-                placeholder="e.g. blue hair warrior"
-                value={drawingName}
-                onChange={(e) => setDrawingName(e.target.value)}
-                style={styles.overlayInput}
-                autoFocus
-              />
-              <div style={styles.overlayButtons}>
-                <button
-                  onClick={() => {
-                    setShowSaveBox(false);
-                    setSaveMessage(null);
-                    setDrawingName("");
-                  }}
-                  style={styles.overlayCancel}
-                >
-                  Cancel
-                </button>
-                <button onClick={saveToLibrary} disabled={saving} style={styles.overlaySave}>
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </div>
-              {saveMessage && <p style={styles.overlayMessage}>{saveMessage}</p>}
-            </div>
+        {selectedNode && (
+          <div style={styles.toggleRow}>
+            <button
+              onClick={toggleNodeType}
+              style={{ ...styles.toggleChip, ...styles.toggleChipActive }}
+            >
+              {selectedNode.type === "corner" ? "Corner" : "Smooth"} — tap
+              to switch
+            </button>
+            <button onClick={deleteSelectedNode} style={styles.dangerChip}>
+              Delete node
+            </button>
           </div>
         )}
-      </main>
-    </>
+      </div>
+
+      <div style={styles.dock}>
+        <button onClick={finishPath} style={styles.toolButton}>
+          Finish path
+        </button>
+        <button onClick={newPath} style={styles.toolButton}>
+          New path
+        </button>
+        <button
+          onClick={() => setShowSaveBox(true)}
+          style={{ ...styles.toolButton, ...styles.toolButtonActiveCyan }}
+        >
+          Save to Library
+        </button>
+        <button onClick={clearAll} style={styles.clearButton}>
+          Clear all
+        </button>
+      </div>
+
+      {showSaveBox && (
+        <div style={styles.overlay}>
+          <div style={styles.overlayCard}>
+            <p style={styles.overlayTitle}>Name this drawing</p>
+            <input
+              type="text"
+              placeholder="e.g. blue hair warrior"
+              value={drawingName}
+              onChange={(e) => setDrawingName(e.target.value)}
+              style={styles.overlayInput}
+              autoFocus
+            />
+            <div style={styles.overlayButtons}>
+              <button
+                onClick={() => {
+                  setShowSaveBox(false);
+                  setSaveMessage(null);
+                  setDrawingName("");
+                }}
+                style={styles.overlayCancel}
+              >
+                Cancel
+              </button>
+              <button onClick={saveToLibrary} disabled={saving} style={styles.overlaySave}>
+                {saving ? "Saving..." : "Save"}
+              </button>
+            </div>
+            {saveMessage && <p style={styles.overlayMessage}>{saveMessage}</p>}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
 const styles = {
-  main: {
-    minHeight: "100vh",
+  wrap: {
     display: "flex",
     flexDirection: "column",
-    background: "#15121C",
-    color: "#F5EFE0",
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "16px 16px 8px",
-  },
-  backLink: {
-    fontSize: 13,
-    color: "#3FE8E0",
-    textDecoration: "none",
-    fontWeight: 500,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 700,
-    margin: 0,
+    minHeight: "70vh",
   },
   hint: {
     fontSize: 12,

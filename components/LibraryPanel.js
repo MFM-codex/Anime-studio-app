@@ -1,11 +1,7 @@
 import { useState, useEffect } from "react";
-import Link from "next/link";
-import Head from "next/head";
-import { useRouter } from "next/router";
 import { supabase } from "../lib/supabaseClient";
 
-export default function Library() {
-  const router = useRouter();
+export default function LibraryPanel({ onEditInStudio }) {
   const [drawings, setDrawings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,15 +30,10 @@ export default function Library() {
     }
   }
 
-  function loadIntoStudio(drawing) {
-    try {
-      sessionStorage.setItem(
-        "loadIntoStudio",
-        JSON.stringify({ name: drawing.name, image_data: drawing.image_data })
-      );
-      router.push("/studio");
-    } catch (err) {
-      setError("Couldn't open this in Studio. Try again.");
+  function handleEditInStudio(drawing) {
+    setSelected(null);
+    if (onEditInStudio) {
+      onEditInStudio({ name: drawing.name, image_data: drawing.image_data });
     }
   }
 
@@ -62,34 +53,8 @@ export default function Library() {
   );
 
   return (
-    <>
-      <Head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
-          rel="stylesheet"
-        />
-      </Head>
-      <style jsx global>{`
-        * {
-          box-sizing: border-box;
-        }
-        body {
-          margin: 0;
-          font-family: "Space Grotesk", sans-serif;
-          background: #15121c;
-        }
-      `}</style>
-
-      <main style={styles.main}>
-        <header style={styles.header}>
-          <Link href="/studio" style={styles.backLink}>
-            ← Studio
-          </Link>
-          <h1 style={styles.title}>Library</h1>
-          <div style={{ width: 60 }} />
-        </header>
-
+    <div style={styles.wrap}>
+      <div style={styles.searchRow}>
         <input
           type="text"
           placeholder="Search by name..."
@@ -97,82 +62,72 @@ export default function Library() {
           onChange={(e) => setQuery(e.target.value)}
           style={styles.search}
         />
+        <button onClick={fetchDrawings} style={styles.refreshButton} aria-label="Refresh">
+          ⟳
+        </button>
+      </div>
 
-        {loading && <p style={styles.status}>Loading...</p>}
-        {error && <p style={styles.errorText}>{error}</p>}
-        {!loading && !error && filtered.length === 0 && (
-          <p style={styles.status}>
-            {drawings.length === 0
-              ? "Nothing saved yet — go draw something in the Studio."
-              : "No drawings match that search."}
-          </p>
-        )}
+      {loading && <p style={styles.status}>Loading...</p>}
+      {error && <p style={styles.errorText}>{error}</p>}
+      {!loading && !error && filtered.length === 0 && (
+        <p style={styles.status}>
+          {drawings.length === 0
+            ? "Nothing saved yet — go draw something in the Studio or Vector tab."
+            : "No drawings match that search."}
+        </p>
+      )}
 
-        <div style={styles.grid}>
-          {filtered.map((d) => (
-            <button key={d.id} onClick={() => setSelected(d)} style={styles.thumbButton}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={d.image_data} alt={d.name} style={styles.thumb} />
-              <span style={styles.thumbName}>{d.name}</span>
-            </button>
-          ))}
-        </div>
+      <div style={styles.grid}>
+        {filtered.map((d) => (
+          <button key={d.id} onClick={() => setSelected(d)} style={styles.thumbButton}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={d.image_data} alt={d.name} style={styles.thumb} />
+            <span style={styles.thumbName}>{d.name}</span>
+          </button>
+        ))}
+      </div>
 
-        {selected && (
-          <div style={styles.overlay} onClick={() => setSelected(null)}>
-            <div style={styles.overlayCard} onClick={(e) => e.stopPropagation()}>
-              <p style={styles.overlayTitle}>{selected.name}</p>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={selected.image_data} alt={selected.name} style={styles.overlayImage} />
-              <div style={styles.overlayButtons}>
-                <button onClick={() => setSelected(null)} style={styles.overlayClose}>
-                  Close
-                </button>
-                <button onClick={() => loadIntoStudio(selected)} style={styles.overlayEdit}>
-                  Edit in Studio
-                </button>
-                <button
-                  onClick={() => deleteDrawing(selected.id)}
-                  style={styles.overlayDelete}
-                >
-                  Delete
-                </button>
-              </div>
+      {selected && (
+        <div style={styles.overlay} onClick={() => setSelected(null)}>
+          <div style={styles.overlayCard} onClick={(e) => e.stopPropagation()}>
+            <p style={styles.overlayTitle}>{selected.name}</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={selected.image_data} alt={selected.name} style={styles.overlayImage} />
+            <div style={styles.overlayButtons}>
+              <button onClick={() => setSelected(null)} style={styles.overlayClose}>
+                Close
+              </button>
+              <button
+                onClick={() => handleEditInStudio(selected)}
+                style={styles.overlayEdit}
+              >
+                Edit in Studio
+              </button>
+              <button
+                onClick={() => deleteDrawing(selected.id)}
+                style={styles.overlayDelete}
+              >
+                Delete
+              </button>
             </div>
           </div>
-        )}
-      </main>
-    </>
+        </div>
+      )}
+    </div>
   );
 }
 
 const styles = {
-  main: {
-    minHeight: "100vh",
-    background: "#15121C",
-    color: "#F5EFE0",
-    padding: "16px 16px 40px",
+  wrap: {
+    padding: "0 16px 24px",
   },
-  header: {
+  searchRow: {
     display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  backLink: {
-    fontSize: 13,
-    color: "#3FE8E0",
-    textDecoration: "none",
-    fontWeight: 500,
-    width: 60,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 700,
-    margin: 0,
+    gap: 8,
+    marginBottom: 20,
   },
   search: {
-    width: "100%",
+    flex: 1,
     padding: 12,
     borderRadius: 10,
     border: "1px solid rgba(245,239,224,0.2)",
@@ -181,7 +136,15 @@ const styles = {
     fontFamily: "inherit",
     fontSize: 14,
     boxSizing: "border-box",
-    marginBottom: 20,
+  },
+  refreshButton: {
+    width: 44,
+    borderRadius: 10,
+    border: "1px solid rgba(245,239,224,0.2)",
+    background: "#2A2438",
+    color: "#F5EFE0",
+    fontSize: 18,
+    cursor: "pointer",
   },
   status: {
     color: "rgba(245,239,224,0.5)",

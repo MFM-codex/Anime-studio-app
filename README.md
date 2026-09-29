@@ -1,56 +1,47 @@
-# Anime Studio App — Analyzer + Studio + Vector + Library
+# Anime Studio App — one unified interface
 
-<<<<<<< HEAD
-## What's new: custom color palette (`/studio` only, for now)
+## What changed: everything merged into one real interface
 
-Scoped precisely: added to the Studio brush canvas only. The Vector
-editor's swatches are untouched — same scope discipline as before, one
-page at a time.
+This is the biggest structural change yet, precisely: the four separate
+pages (`/`, `/studio`, `/vector`, `/library`) are gone. There is now just
+**one page**, with a tab bar at the top — Analyze / Draw / Vector /
+Library — switching between tools instantly, no page loads.
 
-- Tap the dashed **"+"** circle to open your phone's native color picker
-  and add any color you want to your personal palette
-- New colors appear as extra swatches alongside the original 8, and are
-  saved **on this device** (browser local storage) — they'll still be
-  there next time you open the app on this same phone/browser
-- Tap **"Edit"** (appears once you've added at least one custom color) to
-  reveal small **×** buttons for removing colors you don't want anymore;
-  tap **"Done"** to exit edit mode
+**The important technical detail:** all four tools stay mounted at all
+times. Switching tabs only hides/shows them with CSS — it does not reset
+them. That means: start a drawing in Draw, switch to Library to check a
+reference, switch back — your drawing is still exactly there, mid-stroke.
+Same for an in-progress Vector path, or an Analyzer result on screen.
 
-## Scope note, precisely
+**Bonus this enabled:** "Edit in Studio" from the Library no longer
+navigates to a different page — it just switches the tab and hands the
+image straight to the Draw panel, instantly.
 
-This is one growing palette shelf — add and remove custom colors — not
-multiple separately-named, switchable palettes. If you want actual
-named/swappable palette sets later, that's a bigger follow-up, not part
-of this build.
+Also, since everything now visually lives together, the Analyzer's old
+plain light styling was updated to match the same ink-plum/coral/cyan/
+gold theme as everything else — one consistent look throughout.
 
-Colors are saved per-device, not to Supabase — this is a personal
-preference, not a shared asset like a drawing, so it didn't need the
-database.
+## What's technically different under the hood
 
-Only `pages/studio.js` changed. No new dependencies, no new environment
-=======
-## What's new: zoom on the Vector editor (`/vector` only)
+- Old: `pages/index.js`, `pages/studio.js`, `pages/vector.js`,
+  `pages/library.js` — four separate routes
+- New: `pages/index.js` is now just the shell (header + tab bar +
+  mounts all four panels). The actual tool logic moved into
+  `components/AnalyzerPanel.js`, `components/StudioPanel.js`,
+  `components/VectorPanel.js`, `components/LibraryPanel.js`
 
-Scoped to just this one page, same as the rest of the app — Studio,
-Analyzer, and Library are untouched.
+Nothing about how any individual tool *works* changed — same brush
+engine, same vector node editing, same zoom, same Supabase saving. This
+was a structural move, not a feature change.
 
-- **Two-finger pinch** to zoom in/out
-- **Two-finger drag** to pan around
-- **One finger always edits nodes**, exactly as before — the two
-  gestures don't conflict
-- **+ / − buttons and a zoom % readout** in the bottom-right corner of
-  the canvas, for precise control without relying on pinch
-- **Reset button** snaps back to 100% zoom, centered
-- **Mouse scroll wheel** also zooms, for anyone testing on a desktop
-  browser
+No new dependencies, no new environment variables.
 
-Zoom range is capped between 30% and 500%.
+## Push instructions — read carefully, this one replaces whole files
 
-Only `pages/vector.js` changed. No new dependencies, no new environment
->>>>>>> 07e2c43621de91a7145219ff179730c440a72914
-variables.
-
-## Push instructions (same safe method as always)
+Because pages were deleted and a new `components/` folder was added,
+this push needs the deletions to actually go through, so **run these
+one command at a time**, pressing Enter after each — do not paste them
+as a block (that broke a push last time):
 
 ```
 cd ~
@@ -64,50 +55,62 @@ Check the real path of your latest extracted zip:
 ls ~/storage/shared/
 ```
 
-Copy each item individually:
+Now remove the old files that no longer exist in this version, then
+copy in the new structure (swap in your real folder name):
+
+```
+rm -rf pages components
+```
+
 ```
 cp -r ~/storage/shared/<your-folder>/pages ./
-cp -r ~/storage/shared/<your-folder>/lib ./
+```
+
+```
+cp -r ~/storage/shared/<your-folder>/components ./
+```
+
+```
 cp ~/storage/shared/<your-folder>/package.json ./
+```
+
+```
 cp ~/storage/shared/<your-folder>/next.config.js ./
+```
+
+```
 cp ~/storage/shared/<your-folder>/.gitignore ./
+```
+
+```
 cp ~/storage/shared/<your-folder>/.env.example ./
+```
+
+```
 cp ~/storage/shared/<your-folder>/README.md ./
 ```
 
-<<<<<<< HEAD
-**Important — run each git command one at a time, pressing Enter after
-each, not pasted together as one block.** Pasting them together caused a
-broken command last time and nothing actually got pushed.
-
-=======
->>>>>>> 07e2c43621de91a7145219ff179730c440a72914
-Check before committing:
+Check before committing — this is the most important step this time:
 ```
 git status
 ```
 
-<<<<<<< HEAD
-Expect only `pages/studio.js` listed as modified.
+Expect to see: `pages/studio.js`, `pages/vector.js`, `pages/library.js`
+listed as **deleted**, `pages/index.js` as **modified**, and a whole new
+`components/` folder listed as new files. If you don't see the old pages
+marked as deleted, stop and check `ls pages/` — if `studio.js` etc. are
+still sitting in that folder, the `rm -rf pages components` step didn't
+run, or ran in the wrong folder.
 
 ```
 git add .
 ```
 
-Then, separately:
 ```
-git commit -m "Add custom color palette to Studio"
+git commit -m "Merge all tools into one unified interface"
 ```
 
-Then, separately:
 ```
-=======
-Expect only `pages/vector.js` listed as modified.
-
-```
-git add .
-git commit -m "Add pinch-to-zoom and pan to Vector editor"
->>>>>>> 07e2c43621de91a7145219ff179730c440a72914
 git push origin main
 ```
 
@@ -116,37 +119,24 @@ git push origin main
 Go to Vercel → Deployments and check the top entry's commit message
 matches what you just pushed, before testing.
 
-## Test it
+## Test it, precisely
 
-<<<<<<< HEAD
-1. Open `/studio`
-2. Tap the dashed "+" circle, pick any color
-3. Confirm it appears as a new swatch and gets selected
-4. Draw with it
-5. Reload the page — the custom color should still be there
-6. Tap "Edit," then the × on that swatch to remove it, then "Done"
+1. Open the app — you should land on Analyze, with a tab bar up top
+2. Tap **Draw**, draw something
+3. Tap **Library** without saving first — your drawing should NOT
+   disappear when you tap back to Draw
+4. Tap **Vector**, drop a few nodes
+5. Tap back to **Draw** — your earlier drawing should still be there,
+   untouched
+6. Save something to the Library from Draw, tap **Library**, tap
+   **Refresh** if it doesn't show up immediately, then tap it and
+   **Edit in Studio** — confirm it switches straight to Draw with the
+   image loaded, no page reload
 
 ## What's next
 
 - Freehand-to-shape recognition (optional, hardest remaining piece)
 - An animation timeline (draw multiple frames, play back as a short
   video) — the free path toward actual anime-style shorts
-- Bringing this same custom palette to the Vector editor, if wanted
 - A canvas scrollbar (mentioned, deferred for later)
-=======
-1. Open `/vector`
-2. Draw a small shape
-3. Pinch with two fingers — the shape should zoom in/out smoothly,
-   staying under your fingers as you pinch
-4. Drag with two fingers — the canvas should pan
-5. With one finger, confirm you can still add/move/edit nodes normally,
-   even while zoomed in
-6. Try the `+` / `−` buttons and Reset in the bottom-right corner
-
-## What's next
-
-- A dedicated, savable custom color palette panel
-- Freehand-to-shape recognition (optional, hardest remaining piece)
-- An animation timeline (draw multiple frames, play back as a short
-  video) — the free path toward actual anime-style shorts
->>>>>>> 07e2c43621de91a7145219ff179730c440a72914
+- Custom color palette brought to the Vector tab too (currently Draw-only)
