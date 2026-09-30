@@ -813,13 +813,12 @@ const styles = {
   },
   canvasWrap: {
     position: "relative",
-    flex: 1,
+    height: "55vh",
     margin: "0 16px 16px",
     borderRadius: 16,
     overflow: "hidden",
     border: "1px solid rgba(245,239,224,0.15)",
     boxShadow: "0 8px 30px rgba(0,0,0,0.4)",
-    minHeight: 320,
   },
   zoomControls: {
     position: "absolute",

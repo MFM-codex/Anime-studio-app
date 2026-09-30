@@ -1,26 +1,28 @@
-# Anime Studio App — scroll drift fixed
+# Anime Studio App — canvas growing/elongating fixed
 
 ## What was wrong, precisely
 
-The Vector tab (and any tab with enough stacked controls) is taller than
-one phone screen, so the page was naturally scrollable. Combined with
-your phone browser's address bar hiding/showing as you scrolled, the
-layout reflowed slightly each time — which felt like the workspace was
-drifting downward on its own.
+The canvas box was set to "fill whatever space is left" (`flex: 1`)
+rather than a fixed size. Combined with the `ResizeObserver` added in the
+last fix, touching the canvas could trigger a loop: the observer detects
+a size change, resizes the canvas, which very slightly changes the
+available layout space, which the observer detects again — visually,
+this showed up as the white workspace slowly growing/elongating downward
+the more you touched it.
 
 ## The fix
 
-Locked the outer page (`html`, `body`) so it can never scroll or bounce.
-The app's own content area (everything below the header) is now the one
-and only scroll container, with `overflow-y: auto`. This keeps the
-browser's address bar and viewport stable, so nothing shifts or drifts
-during use — any tab with more content than fits just scrolls cleanly
-inside itself now.
+The canvas area now has a fixed height (`55vh` — just over half the
+screen) instead of "fill remaining space." With nothing left to
+recalculate, the loop can't happen — the canvas sizes once, correctly,
+and stays that size.
 
-Only `pages/index.js` changed. No new dependencies, no new environment
+Only `components/StudioPanel.js` and `components/VectorPanel.js`
+changed (the same two files as last time — this is a refinement of that
+same fix, not a new bug). No new dependencies, no new environment
 variables.
 
-## Push instructions — one command at a time
+## Push instructions — one block, runs line by line
 
 ```
 cd ~
@@ -35,26 +37,17 @@ ls ~/storage/shared/
 ```
 
 ```
-cp ~/storage/shared/<your-folder>/pages/index.js ./pages/index.js
-```
-```
+cp -r ~/storage/shared/<your-folder>/components ./
 cp ~/storage/shared/<your-folder>/README.md ./
-```
-
-Check before committing:
-```
 git status
 ```
 
-Expect only `pages/index.js` listed as modified.
+Expect only `components/StudioPanel.js` and `components/VectorPanel.js`
+listed as modified. If that's right:
 
 ```
 git add .
-```
-```
-git commit -m "Fix scroll drift by locking outer page scroll"
-```
-```
+git commit -m "Fix canvas elongating bug with a fixed height"
 git push origin main
 ```
 
@@ -63,13 +56,14 @@ git push origin main
 Go to Vercel → Deployments and check the top entry's commit message
 matches what you just pushed, before testing.
 
-## Test it
+## Test it, precisely
 
-1. Open the app, go to Vector
-2. Tap around to add a few nodes, use the controls below
-3. Confirm the page no longer drifts or scrolls on its own
-4. If the control area below the canvas doesn't all fit, it should
-   scroll smoothly within itself now, without the whole page bouncing
+1. Open Vector (or Draw)
+2. Tap around on the canvas repeatedly, the way you were before
+3. Watch the white canvas box itself — it should stay the exact same
+   size the whole time, not grow or shift
+4. Also confirm the page overall still doesn't scroll/drift (the
+   previous fix)
 
 ## What's next
 

@@ -660,7 +660,7 @@ const styles = {
     color: "#F5EFE0",
   },
   canvasWrap: {
-    flex: 1,
+    height: "55vh",
     margin: "0 16px 16px",
     borderRadius: 16,
     overflow: "hidden",
