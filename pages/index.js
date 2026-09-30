@@ -37,11 +37,20 @@ export default function AppShell() {
         * {
           box-sizing: border-box;
         }
+        html,
         body {
           margin: 0;
+          height: 100%;
+          overflow: hidden;
+          overscroll-behavior: none;
+        }
+        body {
           font-family: "Space Grotesk", sans-serif;
           background: #15121c;
           color: #f5efe0;
+        }
+        #__next {
+          height: 100%;
         }
       `}</style>
 
@@ -91,7 +100,9 @@ export default function AppShell() {
 
 const styles = {
   main: {
-    minHeight: "100vh",
+    height: "100vh",
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
     display: "flex",
     flexDirection: "column",
   },
