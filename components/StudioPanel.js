@@ -66,9 +66,12 @@ export default function StudioPanel({ loadRequest, onLoadConsumed }) {
     const canvas = canvasRef.current;
     const parent = canvas.parentElement;
     const ratio = window.devicePixelRatio || 1;
+    let initialized = false;
 
     function resize() {
       const { width, height } = parent.getBoundingClientRect();
+      if (width === 0 || height === 0) return; // tab not visible yet
+
       const ctx = canvas.getContext("2d");
       const prev = document.createElement("canvas");
       prev.width = canvas.width;
@@ -82,12 +85,26 @@ export default function StudioPanel({ loadRequest, onLoadConsumed }) {
       ctx.scale(ratio, ratio);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.drawImage(prev, 0, 0, prev.width / ratio, prev.height / ratio);
+
+      if (!initialized) {
+        // First time this canvas has a real size — paint the paper
+        // background fresh instead of copying forward an empty 0x0 canvas.
+        ctx.fillStyle = "#F5EFE0";
+        ctx.fillRect(0, 0, width, height);
+        initialized = true;
+      } else {
+        ctx.drawImage(prev, 0, 0, prev.width / ratio, prev.height / ratio);
+      }
     }
 
     resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(parent);
     window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", resize);
+    };
   }, []);
 
   const getPoint = useCallback((e) => {
@@ -224,20 +241,29 @@ export default function StudioPanel({ loadRequest, onLoadConsumed }) {
     img.src = dataUri;
   }
 
-  // Fill canvas with paper color on first mount
+  // Receive a drawing sent over from the Library panel ("Edit in Studio").
+  // The canvas may not be sized yet if this tab was just switched to in
+  // the same action — wait a frame until it has real dimensions.
   useEffect(() => {
-    fillPaper();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!(loadRequest && loadRequest.image_data)) return;
 
-  // Receive a drawing sent over from the Library panel ("Edit in Studio")
-  useEffect(() => {
-    if (loadRequest && loadRequest.image_data) {
+    let cancelled = false;
+    function attempt() {
+      if (cancelled) return;
+      const canvas = canvasRef.current;
+      if (!canvas || canvas.width === 0) {
+        requestAnimationFrame(attempt);
+        return;
+      }
       fillPaper();
       drawImageOntoCanvas(loadRequest.image_data);
       setDrawingName(loadRequest.name || "");
       if (onLoadConsumed) onLoadConsumed();
     }
+    attempt();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadRequest]);
 

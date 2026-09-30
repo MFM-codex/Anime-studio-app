@@ -93,6 +93,7 @@ export default function VectorPanel() {
 
     function resize() {
       const { width, height } = parent.getBoundingClientRect();
+      if (width === 0 || height === 0) return; // tab not visible yet
       canvas.width = width * ratio;
       canvas.height = height * ratio;
       canvas.style.width = `${width}px`;
@@ -103,8 +104,13 @@ export default function VectorPanel() {
     }
 
     resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(parent);
     window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", resize);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -1,47 +1,26 @@
-# Anime Studio App — one unified interface
+# Anime Studio App — black canvas bug fixed
 
-## What changed: everything merged into one real interface
+## What was wrong, precisely
 
-This is the biggest structural change yet, precisely: the four separate
-pages (`/`, `/studio`, `/vector`, `/library`) are gone. There is now just
-**one page**, with a tab bar at the top — Analyze / Draw / Vector /
-Library — switching between tools instantly, no page loads.
+Draw and Vector tabs start hidden (`display:none`) since the app opens on
+Analyze by default. Both canvases were sizing themselves based on their
+container's on-screen size **the moment they loaded** — but a hidden
+container reports zero size, so both canvases got set to 0×0 and never
+painted anything. What you saw as "black" was actually the dark app
+background showing through an essentially blank, invisible canvas.
 
-**The important technical detail:** all four tools stay mounted at all
-times. Switching tabs only hides/shows them with CSS — it does not reset
-them. That means: start a drawing in Draw, switch to Library to check a
-reference, switch back — your drawing is still exactly there, mid-stroke.
-Same for an in-progress Vector path, or an Analyzer result on screen.
+## The fix
 
-**Bonus this enabled:** "Edit in Studio" from the Library no longer
-navigates to a different page — it just switches the tab and hands the
-image straight to the Draw panel, instantly.
+Both `StudioPanel.js` and `VectorPanel.js` now use a `ResizeObserver`
+instead of only listening for window resize — this correctly detects the
+moment a tab's container goes from hidden to visible and gives the canvas
+a real size right then, painting the white paper background fresh at
+that point.
 
-Also, since everything now visually lives together, the Analyzer's old
-plain light styling was updated to match the same ink-plum/coral/cyan/
-gold theme as everything else — one consistent look throughout.
+Only these two files changed. No new dependencies, no new environment
+variables.
 
-## What's technically different under the hood
-
-- Old: `pages/index.js`, `pages/studio.js`, `pages/vector.js`,
-  `pages/library.js` — four separate routes
-- New: `pages/index.js` is now just the shell (header + tab bar +
-  mounts all four panels). The actual tool logic moved into
-  `components/AnalyzerPanel.js`, `components/StudioPanel.js`,
-  `components/VectorPanel.js`, `components/LibraryPanel.js`
-
-Nothing about how any individual tool *works* changed — same brush
-engine, same vector node editing, same zoom, same Supabase saving. This
-was a structural move, not a feature change.
-
-No new dependencies, no new environment variables.
-
-## Push instructions — read carefully, this one replaces whole files
-
-Because pages were deleted and a new `components/` folder was added,
-this push needs the deletions to actually go through, so **run these
-one command at a time**, pressing Enter after each — do not paste them
-as a block (that broke a push last time):
+## Push instructions — one command at a time
 
 ```
 cd ~
@@ -55,61 +34,29 @@ Check the real path of your latest extracted zip:
 ls ~/storage/shared/
 ```
 
-Now remove the old files that no longer exist in this version, then
-copy in the new structure (swap in your real folder name):
-
-```
-rm -rf pages components
-```
-
-```
-cp -r ~/storage/shared/<your-folder>/pages ./
-```
-
+Copy just the two changed files plus the usual support files (swap in
+your real folder name):
 ```
 cp -r ~/storage/shared/<your-folder>/components ./
 ```
-
-```
-cp ~/storage/shared/<your-folder>/package.json ./
-```
-
-```
-cp ~/storage/shared/<your-folder>/next.config.js ./
-```
-
-```
-cp ~/storage/shared/<your-folder>/.gitignore ./
-```
-
-```
-cp ~/storage/shared/<your-folder>/.env.example ./
-```
-
 ```
 cp ~/storage/shared/<your-folder>/README.md ./
 ```
 
-Check before committing — this is the most important step this time:
+Check before committing:
 ```
 git status
 ```
 
-Expect to see: `pages/studio.js`, `pages/vector.js`, `pages/library.js`
-listed as **deleted**, `pages/index.js` as **modified**, and a whole new
-`components/` folder listed as new files. If you don't see the old pages
-marked as deleted, stop and check `ls pages/` — if `studio.js` etc. are
-still sitting in that folder, the `rm -rf pages components` step didn't
-run, or ran in the wrong folder.
+Expect only `components/StudioPanel.js` and `components/VectorPanel.js`
+listed as modified.
 
 ```
 git add .
 ```
-
 ```
-git commit -m "Merge all tools into one unified interface"
+git commit -m "Fix black canvas bug on Draw and Vector tabs"
 ```
-
 ```
 git push origin main
 ```
@@ -119,19 +66,15 @@ git push origin main
 Go to Vercel → Deployments and check the top entry's commit message
 matches what you just pushed, before testing.
 
-## Test it, precisely
+## Test it
 
-1. Open the app — you should land on Analyze, with a tab bar up top
-2. Tap **Draw**, draw something
-3. Tap **Library** without saving first — your drawing should NOT
-   disappear when you tap back to Draw
-4. Tap **Vector**, drop a few nodes
-5. Tap back to **Draw** — your earlier drawing should still be there,
-   untouched
-6. Save something to the Library from Draw, tap **Library**, tap
-   **Refresh** if it doesn't show up immediately, then tap it and
-   **Edit in Studio** — confirm it switches straight to Draw with the
-   image loaded, no page reload
+1. Open the app fresh (lands on Analyze)
+2. Tap **Draw** — canvas should now show white paper immediately, ready
+   to draw on
+3. Tap **Vector** — same, white canvas ready for nodes
+4. Draw something in Draw, switch tabs away and back — it should still
+   be there (this part already worked, just confirming it still does
+   after the fix)
 
 ## What's next
 
