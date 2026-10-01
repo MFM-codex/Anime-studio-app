@@ -1,26 +1,23 @@
-# Anime Studio App — canvas growing/elongating fixed
+# Anime Studio App — canvas scrollbars (Vector tab only)
 
-## What was wrong, precisely
+## What's new
 
-The canvas box was set to "fill whatever space is left" (`flex: 1`)
-rather than a fixed size. Combined with the `ResizeObserver` added in the
-last fix, touching the canvas could trigger a loop: the observer detects
-a size change, resizes the canvas, which very slightly changes the
-available layout space, which the observer detects again — visually,
-this showed up as the white workspace slowly growing/elongating downward
-the more you touched it.
+Draggable scrollbar tracks along the bottom and right edge of the Vector
+canvas — a visual indicator of where you are, and a way to pan by
+dragging instead of only two-finger gestures.
 
-## The fix
+**Precisely how it works:** since the Vector canvas is a free, unbounded
+pan/zoom plane (no fixed document size), the scrollbar treats a fixed
+area — 3× the size of your visible viewport, centered on the origin —
+as the "scrollable content." The thumb's size reflects your current
+zoom level (zoomed in = smaller thumb, more room to scroll); dragging it
+pans the canvas directly.
 
-The canvas area now has a fixed height (`55vh` — just over half the
-screen) instead of "fill remaining space." With nothing left to
-recalculate, the loop can't happen — the canvas sizes once, correctly,
-and stays that size.
+Scoped to the Vector tab only, since that's the only tab with pan/zoom
+right now. Studio/Draw doesn't have this yet.
 
-Only `components/StudioPanel.js` and `components/VectorPanel.js`
-changed (the same two files as last time — this is a refinement of that
-same fix, not a new bug). No new dependencies, no new environment
-variables.
+Only `components/VectorPanel.js` changed. No new dependencies, no new
+environment variables.
 
 ## Push instructions — one block, runs line by line
 
@@ -42,12 +39,11 @@ cp ~/storage/shared/<your-folder>/README.md ./
 git status
 ```
 
-Expect only `components/StudioPanel.js` and `components/VectorPanel.js`
-listed as modified. If that's right:
+Expect only `components/VectorPanel.js` listed as modified.
 
 ```
 git add .
-git commit -m "Fix canvas elongating bug with a fixed height"
+git commit -m "Add draggable scrollbars to Vector canvas"
 git push origin main
 ```
 
@@ -56,19 +52,22 @@ git push origin main
 Go to Vercel → Deployments and check the top entry's commit message
 matches what you just pushed, before testing.
 
-## Test it, precisely
+## Test it
 
-1. Open Vector (or Draw)
-2. Tap around on the canvas repeatedly, the way you were before
-3. Watch the white canvas box itself — it should stay the exact same
-   size the whole time, not grow or shift
-4. Also confirm the page overall still doesn't scroll/drift (the
-   previous fix)
+1. Open Vector
+2. Zoom in using the + button or pinch
+3. You should see thin scrollbar tracks appear along the bottom and
+   right edge of the canvas, with a thumb that's now smaller than the
+   full track
+4. Drag either thumb — the canvas should pan smoothly in that direction
+5. Zoom back to 100% — thumbs should return to filling nearly the whole
+   track (nothing to scroll)
 
 ## What's next
 
+- Animation timeline (draw multiple frames, play back as a short video)
+  — the big one, the actual free path toward your anime-shorts goal
 - Freehand-to-shape recognition (optional, hardest remaining piece)
-- An animation timeline (draw multiple frames, play back as a short
-  video) — the free path toward actual anime-style shorts
-- A canvas scrollbar (mentioned, deferred for later)
 - Custom color palette brought to the Vector tab too (currently Draw-only)
+- Same scrollbars could be added to Draw tab too, if it ever gets
+  zoom/pan

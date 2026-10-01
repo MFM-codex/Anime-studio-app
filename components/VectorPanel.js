@@ -600,6 +600,68 @@ export default function VectorPanel() {
     zoomBy(factor, anchor);
   }
 
+  // ---------- scrollbars ----------
+  // Content is treated as a fixed area, several times larger than the
+  // visible viewport, centered on the origin. This gives the scrollbar
+  // a well-defined range even though the canvas itself is a free,
+  // unbounded pan/zoom plane.
+  const EXTENT_MULTIPLIER = 3;
+  const viewportW = canvasRef.current?.clientWidth || 300;
+  const viewportH = canvasRef.current?.clientHeight || 300;
+  const contentW = viewportW * EXTENT_MULTIPLIER;
+  const contentH = viewportH * EXTENT_MULTIPLIER;
+  const contentLeft = -(contentW - viewportW) / 2;
+  const contentTop = -(contentH - viewportH) / 2;
+
+  const visibleLeft = -pan.x / zoom;
+  const visibleTop = -pan.y / zoom;
+  const visibleW = viewportW / zoom;
+  const visibleH = viewportH / zoom;
+
+  const thumbWPercent = Math.min(100, Math.max(6, (visibleW / contentW) * 100));
+  const thumbHPercent = Math.min(100, Math.max(6, (visibleH / contentH) * 100));
+  const thumbLeftPercent = Math.min(
+    100 - thumbWPercent,
+    Math.max(0, ((visibleLeft - contentLeft) / contentW) * 100)
+  );
+  const thumbTopPercent = Math.min(
+    100 - thumbHPercent,
+    Math.max(0, ((visibleTop - contentTop) / contentH) * 100)
+  );
+
+  function dragScrollbar(axis, e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startEvent = e.touches ? e.touches[0] : e;
+    const startX = startEvent.clientX;
+    const startY = startEvent.clientY;
+    const startPan = pan;
+    const trackPx = axis === "x" ? viewportW : viewportH;
+    const contentPx = axis === "x" ? contentW : contentH;
+
+    function onMove(moveEvent) {
+      const point = moveEvent.touches ? moveEvent.touches[0] : moveEvent;
+      const deltaPx = axis === "x" ? point.clientX - startX : point.clientY - startY;
+      const deltaWorld = deltaPx * (contentPx / trackPx);
+      const deltaPan = deltaWorld * zoom;
+      setPan((p) =>
+        axis === "x"
+          ? { ...p, x: startPan.x - deltaPan }
+          : { ...p, y: startPan.y - deltaPan }
+      );
+    }
+    function onUp() {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onUp);
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+  }
+
   // ---------- live styling ----------
   function targetPathId() {
     return selectedPathId || activePathId;
@@ -680,6 +742,29 @@ export default function VectorPanel() {
           <button onClick={resetZoom} style={styles.zoomResetButton}>
             Reset
           </button>
+        </div>
+
+        <div style={styles.hScrollTrack}>
+          <div
+            style={{
+              ...styles.hScrollThumb,
+              width: `${thumbWPercent}%`,
+              left: `${thumbLeftPercent}%`,
+            }}
+            onMouseDown={(e) => dragScrollbar("x", e)}
+            onTouchStart={(e) => dragScrollbar("x", e)}
+          />
+        </div>
+        <div style={styles.vScrollTrack}>
+          <div
+            style={{
+              ...styles.vScrollThumb,
+              height: `${thumbHPercent}%`,
+              top: `${thumbTopPercent}%`,
+            }}
+            onMouseDown={(e) => dragScrollbar("y", e)}
+            onTouchStart={(e) => dragScrollbar("y", e)}
+          />
         </div>
       </div>
 
@@ -859,6 +944,38 @@ const styles = {
     fontSize: 12,
     fontWeight: 600,
     cursor: "pointer",
+  },
+  hScrollTrack: {
+    position: "absolute",
+    left: 0,
+    right: 10,
+    bottom: 0,
+    height: 10,
+    background: "rgba(21,18,28,0.35)",
+  },
+  hScrollThumb: {
+    position: "absolute",
+    top: 1,
+    height: 8,
+    borderRadius: 4,
+    background: "rgba(245,239,224,0.55)",
+    cursor: "grab",
+  },
+  vScrollTrack: {
+    position: "absolute",
+    top: 0,
+    bottom: 10,
+    right: 0,
+    width: 10,
+    background: "rgba(21,18,28,0.35)",
+  },
+  vScrollThumb: {
+    position: "absolute",
+    left: 1,
+    width: 8,
+    borderRadius: 4,
+    background: "rgba(245,239,224,0.55)",
+    cursor: "grab",
   },
   canvas: {
     display: "block",
