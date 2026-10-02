@@ -31,6 +31,12 @@ export default function StudioPanel({ loadRequest, onLoadConsumed }) {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
   const [customColors, setCustomColors] = useState([]);
+  const [frames, setFrames] = useState([]);
+  const [activeFrameIndex, setActiveFrameIndex] = useState(0);
+  const [showPlayback, setShowPlayback] = useState(false);
+  const [fps, setFps] = useState(6);
+  const [playbackIndex, setPlaybackIndex] = useState(0);
+  const frameIdCounter = useRef(1);
   const [paletteEditMode, setPaletteEditMode] = useState(false);
 
   function pushHistory() {
@@ -92,6 +98,10 @@ export default function StudioPanel({ loadRequest, onLoadConsumed }) {
         ctx.fillStyle = "#F5EFE0";
         ctx.fillRect(0, 0, width, height);
         initialized = true;
+
+        setFrames((prev) =>
+          prev.length === 0 ? [{ id: 1, dataUrl: canvas.toDataURL("image/png") }] : prev
+        );
       } else {
         ctx.drawImage(prev, 0, 0, prev.width / ratio, prev.height / ratio);
       }
@@ -240,6 +250,98 @@ export default function StudioPanel({ loadRequest, onLoadConsumed }) {
     };
     img.src = dataUri;
   }
+
+  // ---------- animation frames ----------
+  function syncActiveFrame(frameList) {
+    const canvas = canvasRef.current;
+    if (!canvas || canvas.width === 0) return frameList;
+    const snapshot = canvas.toDataURL("image/png");
+    return frameList.map((f, i) =>
+      i === activeFrameIndex ? { ...f, dataUrl: snapshot } : f
+    );
+  }
+
+  function switchToFrame(index, frameList) {
+    setActiveFrameIndex(index);
+    drawImageOntoCanvas(frameList[index].dataUrl);
+    setHistory([]);
+  }
+
+  function addFrame() {
+    const synced = syncActiveFrame(frames);
+    frameIdCounter.current += 1;
+    const newFrame = { id: frameIdCounter.current, dataUrl: null };
+    const insertAt = activeFrameIndex + 1;
+    const next = [...synced.slice(0, insertAt), newFrame, ...synced.slice(insertAt)];
+    setFrames(next);
+    setActiveFrameIndex(insertAt);
+    fillPaper();
+    setHistory([]);
+    // Capture the blank paper as this new frame's stored image
+    setTimeout(() => {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const dataUrl = canvas.toDataURL("image/png");
+        setFrames((prev) =>
+          prev.map((f, i) => (i === insertAt ? { ...f, dataUrl } : f))
+        );
+      }
+    }, 0);
+  }
+
+  function duplicateFrame() {
+    const synced = syncActiveFrame(frames);
+    frameIdCounter.current += 1;
+    const current = synced[activeFrameIndex];
+    const newFrame = { id: frameIdCounter.current, dataUrl: current.dataUrl };
+    const insertAt = activeFrameIndex + 1;
+    const next = [...synced.slice(0, insertAt), newFrame, ...synced.slice(insertAt)];
+    setFrames(next);
+    switchToFrame(insertAt, next);
+  }
+
+  function deleteFrame(index) {
+    if (frames.length <= 1) return; // always keep at least one frame
+    const next = frames.filter((_, i) => i !== index);
+    let newActive = activeFrameIndex;
+    if (index < activeFrameIndex) newActive -= 1;
+    else if (index === activeFrameIndex) newActive = Math.min(index, next.length - 1);
+    setFrames(next);
+    switchToFrame(newActive, next);
+  }
+
+  function moveFrame(index, direction) {
+    const target = index + direction;
+    if (target < 0 || target >= frames.length) return;
+    const synced = syncActiveFrame(frames);
+    const next = [...synced];
+    [next[index], next[target]] = [next[target], next[index]];
+    setFrames(next);
+    if (activeFrameIndex === index) setActiveFrameIndex(target);
+    else if (activeFrameIndex === target) setActiveFrameIndex(index);
+  }
+
+  function selectFrame(index) {
+    if (index === activeFrameIndex) return;
+    const synced = syncActiveFrame(frames);
+    setFrames(synced);
+    switchToFrame(index, synced);
+  }
+
+  function openPlayback() {
+    const synced = syncActiveFrame(frames);
+    setFrames(synced);
+    setPlaybackIndex(0);
+    setShowPlayback(true);
+  }
+
+  useEffect(() => {
+    if (!showPlayback || frames.length === 0) return;
+    const interval = setInterval(() => {
+      setPlaybackIndex((i) => (i + 1) % frames.length);
+    }, 1000 / fps);
+    return () => clearInterval(interval);
+  }, [showPlayback, fps, frames.length]);
 
   // Receive a drawing sent over from the Library panel ("Edit in Studio").
   // The canvas may not be sized yet if this tab was just switched to in
@@ -454,7 +556,65 @@ export default function StudioPanel({ loadRequest, onLoadConsumed }) {
         />
       </div>
 
+      <div style={styles.filmstrip}>
+        {frames.map((frame, i) => (
+          <div key={frame.id} style={styles.frameThumbWrap}>
+            <button
+              onClick={() => selectFrame(i)}
+              style={{
+                ...styles.frameThumbButton,
+                ...(i === activeFrameIndex ? styles.frameThumbButtonActive : {}),
+              }}
+            >
+              {frame.dataUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={frame.dataUrl} alt={`Frame ${i + 1}`} style={styles.frameThumbImg} />
+              ) : (
+                <span style={styles.frameThumbLoading}>…</span>
+              )}
+            </button>
+            <div style={styles.frameThumbControls}>
+              <button
+                onClick={() => moveFrame(i, -1)}
+                disabled={i === 0}
+                style={{ ...styles.frameMiniButton, opacity: i === 0 ? 0.3 : 1 }}
+              >
+                ←
+              </button>
+              <span style={styles.frameNumber}>{i + 1}</span>
+              <button
+                onClick={() => moveFrame(i, 1)}
+                disabled={i === frames.length - 1}
+                style={{
+                  ...styles.frameMiniButton,
+                  opacity: i === frames.length - 1 ? 0.3 : 1,
+                }}
+              >
+                →
+              </button>
+            </div>
+            {frames.length > 1 && (
+              <button onClick={() => deleteFrame(i)} style={styles.frameDeleteButton}>
+                ×
+              </button>
+            )}
+          </div>
+        ))}
+
+        <div style={styles.frameAddWrap}>
+          <button onClick={addFrame} style={styles.frameAddButton}>
+            + Frame
+          </button>
+          <button onClick={duplicateFrame} style={styles.frameAddButton}>
+            Duplicate
+          </button>
+        </div>
+      </div>
+
       <div style={styles.dock}>
+        <button onClick={openPlayback} style={{ ...styles.toolButton, ...styles.toolButtonActiveViolet }}>
+          ▶ Play ({frames.length})
+        </button>
         <button
           onClick={undo}
           disabled={history.length === 0}
@@ -525,6 +685,40 @@ export default function StudioPanel({ loadRequest, onLoadConsumed }) {
               </button>
             </div>
             {saveMessage && <p style={styles.overlayMessage}>{saveMessage}</p>}
+          </div>
+        </div>
+      )}
+
+      {showPlayback && (
+        <div style={styles.overlay}>
+          <div style={styles.playbackCard}>
+            <p style={styles.overlayTitle}>Preview ({frames.length} frames)</p>
+            {frames[playbackIndex] && frames[playbackIndex].dataUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={frames[playbackIndex].dataUrl}
+                alt="Animation preview"
+                style={styles.playbackImage}
+              />
+            )}
+            <div style={styles.sizeRow}>
+              <span style={styles.sizeLabel}>Speed</span>
+              <input
+                type="range"
+                min="1"
+                max="24"
+                value={fps}
+                onChange={(e) => setFps(Number(e.target.value))}
+                style={styles.slider}
+              />
+              <span style={styles.opacityValue}>{fps} fps</span>
+            </div>
+            <button
+              onClick={() => setShowPlayback(false)}
+              style={{ ...styles.overlaySave, marginTop: 14 }}
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
@@ -707,6 +901,112 @@ const styles = {
     background: "#3FE8E0",
     borderColor: "#3FE8E0",
     color: "#15121C",
+  },
+  toolButtonActiveViolet: {
+    background: "#7C5CFF",
+    borderColor: "#7C5CFF",
+    color: "#F5EFE0",
+    flex: "1 1 100%",
+  },
+  filmstrip: {
+    display: "flex",
+    gap: 10,
+    overflowX: "auto",
+    padding: "0 16px 16px",
+    alignItems: "flex-start",
+  },
+  frameThumbWrap: {
+    position: "relative",
+    flexShrink: 0,
+    width: 56,
+  },
+  frameThumbButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    border: "2px solid rgba(245,239,224,0.2)",
+    padding: 0,
+    overflow: "hidden",
+    background: "#2A2438",
+    cursor: "pointer",
+  },
+  frameThumbButtonActive: {
+    borderColor: "#FF4D6D",
+  },
+  frameThumbImg: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+  },
+  frameThumbLoading: {
+    color: "rgba(245,239,224,0.4)",
+    fontSize: 12,
+  },
+  frameThumbControls: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  frameMiniButton: {
+    width: 18,
+    height: 18,
+    border: "none",
+    background: "transparent",
+    color: "#3FE8E0",
+    fontSize: 13,
+    cursor: "pointer",
+    padding: 0,
+  },
+  frameNumber: {
+    fontSize: 10,
+    color: "rgba(245,239,224,0.5)",
+  },
+  frameDeleteButton: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 18,
+    height: 18,
+    borderRadius: "50%",
+    border: "none",
+    background: "#FF4D6D",
+    color: "#15121C",
+    fontSize: 12,
+    lineHeight: "18px",
+    padding: 0,
+    cursor: "pointer",
+  },
+  frameAddWrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    flexShrink: 0,
+  },
+  frameAddButton: {
+    padding: "6px 10px",
+    borderRadius: 8,
+    border: "1px dashed rgba(245,239,224,0.4)",
+    background: "transparent",
+    color: "rgba(245,239,224,0.7)",
+    fontSize: 11,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  playbackCard: {
+    background: "#2A2438",
+    borderRadius: 14,
+    padding: 20,
+    width: "100%",
+    maxWidth: 340,
+    border: "1px solid rgba(245,239,224,0.15)",
+  },
+  playbackImage: {
+    width: "100%",
+    borderRadius: 8,
+    marginBottom: 14,
+    background: "#F5EFE0",
   },
   clearButton: {
     flex: "1 1 30%",
