@@ -1,37 +1,52 @@
-# Anime Studio App — animation timeline (Draw tab)
+# Anime Studio App — animations now save and reload
 
 ## What's new, precisely
 
-A frame filmstrip now sits below the canvas in Draw:
+This directly removes the limit I flagged last time: **"Save to
+Library" now saves the whole animation**, not just the frame you're
+currently viewing. Every frame is stored, in order. Loading it back via
+**"Edit in Studio"** restores the entire filmstrip — not just one
+image — so you can keep animating exactly where you left off, even
+after closing the app.
 
-- **+ Frame** — adds a new blank frame right after the current one and
-  switches to it
-- **Duplicate** — copies the current frame as a new one (useful for
-  small incremental changes between frames, the normal flipbook workflow)
-- **Tap a thumbnail** — switches to editing that frame (saves your
-  current frame first, automatically)
-- **← / →** under each thumbnail — reorders frames
-- **×** on a thumbnail — deletes that frame (always keeps at least one)
-- **▶ Play (N)** button — opens a looping preview of all frames in
-  order, with a speed slider (1–24 fps)
+A single-frame drawing still works exactly the same as before — it's
+just an "animation" with one frame, so nothing about simple use changed.
 
-## Honest scope limits, precisely
+Library thumbnails that have more than one frame now show a small
+**"N frames"** badge in the corner, so you can tell animations apart
+from plain drawings at a glance.
 
-- **Frames only live in this browser session's memory.** They are not
-  saved to Supabase/Library yet — refreshing the page loses them. Saving
-  a full animation project is a real follow-up feature, not included here.
-- **No video/GIF export.** Play is an in-app preview only; there's no
-  "download as video" button yet. That would need a GIF/video-encoding
-  library (a new dependency) and is its own separate step.
-- **Undo resets when you switch frames.** Each frame gets a fresh undo
-  history — undo doesn't carry across frames. This is a reasonable
-  simplification, not a bug.
-- **Save to Library still saves only the single current frame** as a
-  still image, same as before — it doesn't know about the animation
-  concept yet.
+## Required: one small Supabase change first
 
-Only `components/StudioPanel.js` changed. No new dependencies, no new
-environment variables.
+Before pushing this code, add a new column to your `drawings` table —
+this is what stores the extra frames.
+
+1. Go to your Supabase project → **SQL Editor** → **New query**
+2. Paste exactly this:
+
+```sql
+alter table drawings add column if not exists frames text;
+```
+
+3. Tap **Run**
+
+That's it — no new policies needed, your existing read/insert policies
+already cover the new column. This is a one-time, additive change: it
+doesn't touch or remove anything already saved.
+
+## What changed in code, precisely
+
+- `components/StudioPanel.js` — Save to Library now stores the full
+  frames array (as JSON) alongside a thumbnail image; loading from
+  Library now restores the whole filmstrip when one exists
+- `components/LibraryPanel.js` — fetches the new `frames` column,
+  parses it, shows the frame-count badge, passes the full frame set
+  through when you tap "Edit in Studio"
+- `pages/index.js` — unchanged; it already forwarded whatever Library
+  sent through, so no edit was needed there
+
+No new dependencies, no new environment variables — just the one SQL
+column addition above.
 
 ## Push instructions — one block, runs line by line
 
@@ -53,11 +68,12 @@ cp ~/storage/shared/<your-folder>/README.md ./
 git status
 ```
 
-Expect only `components/StudioPanel.js` listed as modified.
+Expect `components/StudioPanel.js` and `components/LibraryPanel.js`
+listed as modified.
 
 ```
 git add .
-git commit -m "Add animation timeline to Draw tab"
+git commit -m "Save and reload full animations, not just one frame"
 git push origin main
 ```
 
@@ -68,22 +84,18 @@ matches what you just pushed, before testing.
 
 ## Test it, precisely
 
-1. Open Draw, draw something on frame 1
-2. Tap **+ Frame** — canvas should go blank (frame 2), with frame 1's
-   thumbnail showing what you drew
-3. Draw something different on frame 2
-4. Tap frame 1's thumbnail — your original drawing should come back
-   exactly as you left it
-5. Add a third frame, then use **←** to move it before frame 2 — check
-   the thumbnail order updates
-6. Tap **▶ Play** — confirm it loops through your frames; try the speed
-   slider
-7. Delete a frame with **×** — confirm it can't go below 1 frame total
+1. **Run the SQL column addition first** (above) — if you skip this,
+   saving will fail with a database error about an unknown column
+2. In Draw, make a 2-3 frame animation
+3. Save to Library, give it a name
+4. Go to Library — confirm you see the **"3 frames"** badge (or
+   however many you made) on its thumbnail
+5. Tap it, tap **Edit in Studio**
+6. Confirm all your frames are back in the filmstrip, in the right
+   order, and Play still works on them
 
 ## What's next
 
-- Saving a full animation (all frames) to the Library, not just one
-  still — needs a Supabase schema change
-- Exporting the animation as an actual downloadable video or GIF file
+- Exporting an animation as an actual downloadable video or GIF file
 - Freehand-to-shape recognition (optional, hardest remaining piece)
 - Custom color palette brought to the Vector tab too (currently Draw-only)

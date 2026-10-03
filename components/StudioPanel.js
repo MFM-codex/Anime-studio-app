@@ -217,10 +217,22 @@ export default function StudioPanel({ loadRequest, onLoadConsumed }) {
     try {
       const canvas = canvasRef.current;
       const imageData = canvas.toDataURL("image/png");
+      const syncedFrames = syncActiveFrame(frames);
+      // First frame is the thumbnail/preview image shown in the Library
+      // grid; the full set is stored in `frames` so it can be reloaded
+      // and played back later. A single-frame drawing just has a
+      // frames array of length 1 — fully backward compatible.
+      const framesForStorage = syncedFrames.length > 0 ? syncedFrames : [
+        { id: 1, dataUrl: imageData },
+      ];
 
-      const { error } = await supabase
-        .from("drawings")
-        .insert([{ name: drawingName.trim(), image_data: imageData }]);
+      const { error } = await supabase.from("drawings").insert([
+        {
+          name: drawingName.trim(),
+          image_data: framesForStorage[0].dataUrl,
+          frames: JSON.stringify(framesForStorage),
+        },
+      ]);
 
       if (error) throw error;
 
@@ -358,8 +370,20 @@ export default function StudioPanel({ loadRequest, onLoadConsumed }) {
         return;
       }
       fillPaper();
-      drawImageOntoCanvas(loadRequest.image_data);
+
+      if (loadRequest.frames && loadRequest.frames.length > 0) {
+        frameIdCounter.current = loadRequest.frames.length + 1;
+        setFrames(loadRequest.frames);
+        setActiveFrameIndex(0);
+        drawImageOntoCanvas(loadRequest.frames[0].dataUrl);
+      } else {
+        drawImageOntoCanvas(loadRequest.image_data);
+        setFrames([{ id: 1, dataUrl: loadRequest.image_data }]);
+        setActiveFrameIndex(0);
+      }
+
       setDrawingName(loadRequest.name || "");
+      setHistory([]);
       if (onLoadConsumed) onLoadConsumed();
     }
     attempt();

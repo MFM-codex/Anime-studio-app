@@ -18,7 +18,7 @@ export default function LibraryPanel({ onEditInStudio }) {
     try {
       const { data, error } = await supabase
         .from("drawings")
-        .select("id, name, image_data, created_at")
+        .select("id, name, image_data, frames, created_at")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -33,7 +33,19 @@ export default function LibraryPanel({ onEditInStudio }) {
   function handleEditInStudio(drawing) {
     setSelected(null);
     if (onEditInStudio) {
-      onEditInStudio({ name: drawing.name, image_data: drawing.image_data });
+      let parsedFrames = null;
+      if (drawing.frames) {
+        try {
+          parsedFrames = JSON.parse(drawing.frames);
+        } catch (err) {
+          parsedFrames = null;
+        }
+      }
+      onEditInStudio({
+        name: drawing.name,
+        image_data: drawing.image_data,
+        frames: parsedFrames,
+      });
     }
   }
 
@@ -78,13 +90,27 @@ export default function LibraryPanel({ onEditInStudio }) {
       )}
 
       <div style={styles.grid}>
-        {filtered.map((d) => (
-          <button key={d.id} onClick={() => setSelected(d)} style={styles.thumbButton}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={d.image_data} alt={d.name} style={styles.thumb} />
-            <span style={styles.thumbName}>{d.name}</span>
-          </button>
-        ))}
+        {filtered.map((d) => {
+          let count = 1;
+          if (d.frames) {
+            try {
+              const parsed = JSON.parse(d.frames);
+              if (Array.isArray(parsed)) count = parsed.length;
+            } catch (err) {
+              count = 1;
+            }
+          }
+          return (
+            <button key={d.id} onClick={() => setSelected(d)} style={styles.thumbButton}>
+              <div style={{ position: "relative" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={d.image_data} alt={d.name} style={styles.thumb} />
+                {count > 1 && <span style={styles.frameBadge}>{count} frames</span>}
+              </div>
+              <span style={styles.thumbName}>{d.name}</span>
+            </button>
+          );
+        })}
       </div>
 
       {selected && (
@@ -178,6 +204,17 @@ const styles = {
     aspectRatio: "1 / 1",
     objectFit: "cover",
     borderRadius: 8,
+  },
+  frameBadge: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    background: "rgba(21,18,28,0.85)",
+    color: "#3FE8E0",
+    fontSize: 9,
+    fontWeight: 600,
+    padding: "2px 5px",
+    borderRadius: 6,
   },
   thumbName: {
     fontSize: 12,
